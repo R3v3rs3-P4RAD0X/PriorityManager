@@ -13,13 +13,24 @@ namespace PriorityManager
 
         public PriorityManagerMod(ModContentPack content) : base(content)
         {
-            Instance = this;
-            settings = GetSettings<PriorityManagerSettings>();
-            
-            harmony = new Harmony("P4RAD0X.PriorityManager");
-            harmony.PatchAll();
-            
-            Log.Message("Priority Manager loaded successfully. Press 'N' or open the Work tab to access Priority Manager settings.");
+            try
+            {
+                Log.Message("PriorityManager: Constructor starting...");
+                
+                Instance = this;
+                settings = GetSettings<PriorityManagerSettings>();
+                
+                Log.Message("PriorityManager: Settings loaded, applying Harmony patches...");
+                
+                harmony = new Harmony("P4RAD0X.PriorityManager");
+                harmony.PatchAll();
+                
+                Log.Message("Priority Manager loaded successfully. Press 'N' or open the Work tab to access Priority Manager settings.");
+            }
+            catch (System.Exception ex)
+            {
+                Log.Error($"PriorityManager: FAILED TO LOAD! Exception: {ex.Message}\n{ex.StackTrace}");
+            }
         }
 
         public override void DoSettingsWindowContents(Rect inRect)
