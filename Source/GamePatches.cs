@@ -186,32 +186,47 @@ namespace PriorityManager
     [HarmonyPatch(typeof(MainTabWindow_Work), "DoWindowContents")]
     public static class MainTabWindow_Work_Patch
     {
+        private static bool hasLoggedPatchStatus = false;
+
         static void Postfix(MainTabWindow_Work __instance, Rect rect)
         {
-            // Add buttons at the top right of the work tab
-            float buttonWidth = 150f;
-            float buttonHeight = 30f;
-            float spacing = 10f;
-            float topMargin = 5f;
-            float rightMargin = 5f;
-            
-            // Position from right edge
-            Rect recalcButtonRect = new Rect(rect.xMax - buttonWidth - rightMargin, rect.y + topMargin, buttonWidth, buttonHeight);
-            if (Widgets.ButtonText(recalcButtonRect, "Recalculate All"))
+            try
             {
-                PriorityAssigner.AssignAllColonistPriorities(true);
-                Messages.Message("All colonist priorities have been recalculated.", MessageTypeDefOf.TaskCompletion);
-            }
+                if (!hasLoggedPatchStatus)
+                {
+                    Log.Message("PriorityManager: Work tab patch is running successfully.");
+                    hasLoggedPatchStatus = true;
+                }
 
-            // Priority Manager button to the left of Recalculate All
-            Rect buttonRect = new Rect(recalcButtonRect.x - buttonWidth - spacing, rect.y + topMargin, buttonWidth, buttonHeight);
-            if (Widgets.ButtonText(buttonRect, "Priority Manager"))
+                // Add buttons at the top right of the work tab
+                float buttonWidth = 150f;
+                float buttonHeight = 30f;
+                float spacing = 10f;
+                float topMargin = 5f;
+                float rightMargin = 5f;
+                
+                // Position from right edge
+                Rect recalcButtonRect = new Rect(rect.xMax - buttonWidth - rightMargin, rect.y + topMargin, buttonWidth, buttonHeight);
+                if (Widgets.ButtonText(recalcButtonRect, "Recalculate All"))
+                {
+                    PriorityAssigner.AssignAllColonistPriorities(true);
+                    Messages.Message("All colonist priorities have been recalculated.", MessageTypeDefOf.TaskCompletion);
+                }
+
+                // Priority Manager button to the left of Recalculate All
+                Rect buttonRect = new Rect(recalcButtonRect.x - buttonWidth - spacing, rect.y + topMargin, buttonWidth, buttonHeight);
+                if (Widgets.ButtonText(buttonRect, "Priority Manager"))
+                {
+                    Find.WindowStack.Add(new ConfigWindow());
+                }
+
+                // Show indicators for auto-managed colonists
+                DrawAutoManagedIndicators(__instance);
+            }
+            catch (Exception ex)
             {
-                Find.WindowStack.Add(new ConfigWindow());
+                Log.Error($"PriorityManager: Error in Work tab patch: {ex.Message}\n{ex.StackTrace}");
             }
-
-            // Show indicators for auto-managed colonists
-            DrawAutoManagedIndicators(__instance);
         }
 
         static void DrawAutoManagedIndicators(MainTabWindow_Work window)
@@ -251,9 +266,11 @@ namespace PriorityManager
     }
 
     // Patch to handle keybind
-    [HarmonyPatch(typeof(UIRoot_Entry), "UIRootOnGUI")]
-    public static class UIRoot_Entry_Patch
+    [HarmonyPatch(typeof(UIRoot_Play), "UIRootOnGUI")]
+    public static class UIRoot_Play_Patch
     {
+        private static bool hasLoggedKeybind = false;
+
         static void Postfix()
         {
             if (Current.ProgramState != ProgramState.Playing)
@@ -262,6 +279,12 @@ namespace PriorityManager
             KeyBindingDef keyBinding = DefDatabase<KeyBindingDef>.GetNamedSilentFail("OpenPriorityManager");
             if (keyBinding != null && keyBinding.KeyDownEvent)
             {
+                if (!hasLoggedKeybind)
+                {
+                    Log.Message("PriorityManager: Keybind 'N' detected and working!");
+                    hasLoggedKeybind = true;
+                }
+
                 if (Find.WindowStack.IsOpen<ConfigWindow>())
                 {
                     Find.WindowStack.TryRemove(typeof(ConfigWindow));

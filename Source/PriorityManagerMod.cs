@@ -19,7 +19,7 @@ namespace PriorityManager
             harmony = new Harmony("P4RAD0X.PriorityManager");
             harmony.PatchAll();
             
-            Log.Message("Priority Manager loaded successfully. Press 'P' or open the Work tab to access Priority Manager settings.");
+            Log.Message("Priority Manager loaded successfully. Press 'N' or open the Work tab to access Priority Manager settings.");
         }
 
         public override void DoSettingsWindowContents(Rect inRect)
@@ -64,7 +64,7 @@ namespace PriorityManager
                 "When enabled, colonists with low health or serious injuries will have their work assignments reduced to essential self-care tasks.");
 
             listing.Gap();
-            listing.Label("For more detailed colonist-specific settings, open the Priority Manager window from the Work tab or press 'P'.");
+            listing.Label("For more detailed colonist-specific settings, open the Priority Manager window from the Work tab or press 'N'.");
 
             listing.End();
         }

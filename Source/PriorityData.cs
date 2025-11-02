@@ -14,6 +14,15 @@ namespace PriorityManager
         High,          // Preferred (priority 1-2)
         Critical       // Always assign (priority 1)
     }
+    
+    // PriorityMaster priority distribution presets
+    public enum PriorityPreset
+    {
+        Tight,      // Close spacing: 10, 20, 30, 40
+        Balanced,   // Balanced spread: 10, 30, 60, 90 (default)
+        Wide,       // Maximum spread: 5, 25, 55, 95
+        Custom      // User-defined custom mapping
+    }
 
     public class JobPrioritySetting : IExposable
     {
@@ -46,6 +55,12 @@ namespace PriorityManager
         public Dictionary<string, int> jobMinWorkers = new Dictionary<string, int>();
         public Dictionary<string, int> jobMaxWorkers = new Dictionary<string, int>();
         public Dictionary<string, bool> jobUsePercentage = new Dictionary<string, bool>(); // True = use percentage, False = use absolute numbers
+        
+        // PriorityMaster integration settings
+        public bool enablePriorityMasterIntegration = true;
+        public bool useCustomMapping = false;
+        public Dictionary<int, int> customPriorityMapping = new Dictionary<int, int>(); // vanilla → PM priority
+        public PriorityPreset priorityPreset = PriorityPreset.Balanced;
 
         public override void ExposeData()
         {
@@ -57,6 +72,12 @@ namespace PriorityManager
             Scribe_Collections.Look(ref jobMinWorkers, "jobMinWorkers", LookMode.Value, LookMode.Value);
             Scribe_Collections.Look(ref jobMaxWorkers, "jobMaxWorkers", LookMode.Value, LookMode.Value);
             Scribe_Collections.Look(ref jobUsePercentage, "jobUsePercentage", LookMode.Value, LookMode.Value);
+            
+            // PriorityMaster integration settings
+            Scribe_Values.Look(ref enablePriorityMasterIntegration, "enablePriorityMasterIntegration", true);
+            Scribe_Values.Look(ref useCustomMapping, "useCustomMapping", false);
+            Scribe_Collections.Look(ref customPriorityMapping, "customPriorityMapping", LookMode.Value, LookMode.Value);
+            Scribe_Values.Look(ref priorityPreset, "priorityPreset", PriorityPreset.Balanced);
 
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
@@ -68,6 +89,8 @@ namespace PriorityManager
                     jobMaxWorkers = new Dictionary<string, int>();
                 if (jobUsePercentage == null)
                     jobUsePercentage = new Dictionary<string, bool>();
+                if (customPriorityMapping == null)
+                    customPriorityMapping = new Dictionary<int, int>();
             }
         }
 
@@ -159,6 +182,52 @@ namespace PriorityManager
                 return 0;
             jobMaxWorkers.TryGetValue(workType.defName, out int max);
             return max;
+        }
+        
+        // PriorityMaster integration methods
+        
+        public int GetMappedPriority(int vanillaPriority)
+        {
+            if (useCustomMapping && customPriorityMapping.TryGetValue(vanillaPriority, out int mapped))
+                return mapped;
+            return PriorityMasterCompat.ScalePriority(vanillaPriority);
+        }
+        
+        public void ApplyPreset(PriorityPreset preset)
+        {
+            if (!PriorityMasterCompat.IsLoaded())
+                return;
+                
+            int max = PriorityMasterCompat.GetMaxPriority();
+            customPriorityMapping.Clear();
+            
+            switch (preset)
+            {
+                case PriorityPreset.Tight:
+                    customPriorityMapping[1] = UnityEngine.Mathf.RoundToInt(max * 0.1f);
+                    customPriorityMapping[2] = UnityEngine.Mathf.RoundToInt(max * 0.2f);
+                    customPriorityMapping[3] = UnityEngine.Mathf.RoundToInt(max * 0.3f);
+                    customPriorityMapping[4] = UnityEngine.Mathf.RoundToInt(max * 0.4f);
+                    break;
+                case PriorityPreset.Wide:
+                    customPriorityMapping[1] = UnityEngine.Mathf.RoundToInt(max * 0.05f);
+                    customPriorityMapping[2] = UnityEngine.Mathf.RoundToInt(max * 0.25f);
+                    customPriorityMapping[3] = UnityEngine.Mathf.RoundToInt(max * 0.55f);
+                    customPriorityMapping[4] = UnityEngine.Mathf.RoundToInt(max * 0.95f);
+                    break;
+                case PriorityPreset.Balanced:
+                    // Use default scaling from PriorityMasterCompat
+                    customPriorityMapping[1] = PriorityMasterCompat.ScalePriority(1);
+                    customPriorityMapping[2] = PriorityMasterCompat.ScalePriority(2);
+                    customPriorityMapping[3] = PriorityMasterCompat.ScalePriority(3);
+                    customPriorityMapping[4] = PriorityMasterCompat.ScalePriority(4);
+                    break;
+                case PriorityPreset.Custom:
+                    // Don't change custom mapping
+                    break;
+            }
+            
+            priorityPreset = preset;
         }
     }
 

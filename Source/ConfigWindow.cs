@@ -9,7 +9,8 @@ namespace PriorityManager
     public enum ConfigTab
     {
         Colonists,
-        JobSettings
+        JobSettings,
+        PriorityMaster
     }
 
     public class ConfigWindow : Window
@@ -63,6 +64,10 @@ namespace PriorityManager
             {
                 DrawJobSettingsTab(contentRect);
             }
+            else if (currentTab == ConfigTab.PriorityMaster)
+            {
+                DrawPriorityMasterTab(contentRect);
+            }
 
             // Bottom buttons
             Rect bottomRect = new Rect(0f, inRect.height - 40f, inRect.width, 35f);
@@ -85,6 +90,11 @@ namespace PriorityManager
             {
                 currentTab = ConfigTab.JobSettings;
             }, currentTab == ConfigTab.JobSettings));
+            
+            tabs.Add(new TabRecord("PriorityMaster", delegate
+            {
+                currentTab = ConfigTab.PriorityMaster;
+            }, currentTab == ConfigTab.PriorityMaster));
 
             TabDrawer.DrawTabs(rect, tabs);
         }
@@ -584,6 +594,130 @@ namespace PriorityManager
             }
 
             GUI.EndGroup();
+        }
+        
+        private void DrawPriorityMasterTab(Rect rect)
+        {
+            var listing = new Listing_Standard();
+            listing.Begin(rect);
+            
+            // Detection status
+            if (PriorityMasterCompat.IsLoaded())
+            {
+                listing.Label($"PriorityMaster Detected - Max Priority: {PriorityMasterCompat.GetMaxPriority()}");
+                listing.Label(PriorityMasterCompat.GetMappingDescription());
+            }
+            else
+            {
+                listing.Label("PriorityMaster not detected (using vanilla 1-4 priorities)");
+                listing.Gap();
+                listing.Label("Install PriorityMaster to enable extended priority ranges (1-99).");
+                listing.End();
+                return;
+            }
+            
+            listing.Gap();
+            
+            // Integration toggle
+            listing.CheckboxLabeled("Enable PriorityMaster Integration", ref settings.enablePriorityMasterIntegration, 
+                "When enabled, priorities will be scaled to PriorityMaster's extended range");
+            
+            if (!settings.enablePriorityMasterIntegration)
+            {
+                listing.Gap();
+                listing.Label("Integration disabled. Using vanilla 1-4 priorities.");
+                listing.End();
+                return;
+            }
+            
+            listing.Gap();
+            listing.Gap();
+            
+            // Preset selection
+            Text.Font = GameFont.Medium;
+            listing.Label("Priority Distribution Preset:");
+            Text.Font = GameFont.Small;
+            listing.Gap();
+            
+            if (listing.RadioButton("Tight Spacing (10, 20, 30, 40)", settings.priorityPreset == PriorityPreset.Tight))
+            {
+                settings.ApplyPreset(PriorityPreset.Tight);
+                settings.useCustomMapping = true;
+            }
+            
+            if (listing.RadioButton("Balanced Spread (10, 30, 60, 90) - Default", settings.priorityPreset == PriorityPreset.Balanced))
+            {
+                settings.ApplyPreset(PriorityPreset.Balanced);
+                settings.useCustomMapping = true;
+            }
+            
+            if (listing.RadioButton("Wide Spread (5, 25, 55, 95)", settings.priorityPreset == PriorityPreset.Wide))
+            {
+                settings.ApplyPreset(PriorityPreset.Wide);
+                settings.useCustomMapping = true;
+            }
+            
+            if (listing.RadioButton("Custom Mapping", settings.priorityPreset == PriorityPreset.Custom))
+            {
+                settings.priorityPreset = PriorityPreset.Custom;
+                settings.useCustomMapping = true;
+            }
+            
+            listing.Gap();
+            listing.Gap();
+            
+            // Custom mapping sliders (only for Custom preset)
+            if (settings.priorityPreset == PriorityPreset.Custom)
+            {
+                Text.Font = GameFont.Medium;
+                listing.Label("Custom Priority Mapping:");
+                Text.Font = GameFont.Small;
+                listing.Gap();
+                
+                int maxPriority = PriorityMasterCompat.GetMaxPriority();
+                
+                for (int i = 1; i <= 4; i++)
+                {
+                    int currentValue = settings.customPriorityMapping.TryGetValue(i, out int val) ? val : PriorityMasterCompat.ScalePriority(i);
+                    
+                    Rect sliderRect = listing.GetRect(30f);
+                    Rect labelRect = new Rect(sliderRect.x, sliderRect.y, 150f, sliderRect.height);
+                    Rect valueRect = new Rect(sliderRect.x + sliderRect.width - 50f, sliderRect.y, 50f, sliderRect.height);
+                    Rect actualSliderRect = new Rect(labelRect.xMax + 5f, sliderRect.y, sliderRect.width - labelRect.width - valueRect.width - 15f, sliderRect.height);
+                    
+                    Widgets.Label(labelRect, $"Priority {i} →");
+                    int newValue = Mathf.RoundToInt(Widgets.HorizontalSlider(actualSliderRect, currentValue, 1, maxPriority, true));
+                    Widgets.Label(valueRect, newValue.ToString());
+                    
+                    settings.customPriorityMapping[i] = newValue;
+                }
+            }
+            else if (settings.useCustomMapping)
+            {
+                // Show current mapping for non-custom presets
+                Text.Font = GameFont.Medium;
+                listing.Label("Current Mapping:");
+                Text.Font = GameFont.Small;
+                listing.Gap();
+                
+                for (int i = 1; i <= 4; i++)
+                {
+                    int value = settings.customPriorityMapping.TryGetValue(i, out int val) ? val : PriorityMasterCompat.ScalePriority(i);
+                    listing.Label($"  Priority {i} → {value}");
+                }
+            }
+            
+            listing.Gap();
+            listing.Gap();
+            
+            // Recalculate button
+            if (listing.ButtonText("Recalculate All Priorities"))
+            {
+                PriorityAssigner.AssignAllColonistPriorities(true);
+                Messages.Message("All priorities recalculated with PriorityMaster scaling.", MessageTypeDefOf.TaskCompletion);
+            }
+            
+            listing.End();
         }
 
         public override void PreClose()
