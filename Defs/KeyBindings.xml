@@ -10,7 +10,7 @@
     <label>Open Priority Manager</label>
     <description>Opens the Priority Manager configuration window</description>
     <category>PriorityManager</category>
-    <defaultKeyCodeA>P</defaultKeyCodeA>
+    <defaultKeyCodeA>N</defaultKeyCodeA>
     <defaultKeyCodeB>None</defaultKeyCodeB>
   </KeyBindingDef>
 </Defs>

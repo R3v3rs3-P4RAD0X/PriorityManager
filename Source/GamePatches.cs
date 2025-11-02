@@ -281,7 +281,7 @@ namespace PriorityManager
             {
                 if (!hasLoggedKeybind)
                 {
-                    Log.Message("PriorityManager: Keybind 'P' detected and working!");
+                    Log.Message("PriorityManager: Keybind 'N' detected and working!");
                     hasLoggedKeybind = true;
                 }
 
