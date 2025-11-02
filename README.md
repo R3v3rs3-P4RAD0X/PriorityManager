@@ -20,12 +20,11 @@ Auto-assigns work priorities to colonists based on their skills, user-defined ro
 
 ### For Users
 
-**Quick Install:** Download the latest compiled version:
-- [PriorityManager-v1.0.0.zip](PriorityManager-v1.0.0.zip)
+**Quick Install:** Download the latest compiled version from the [Releases](https://github.com/R3v3rs3-P4RAD0X/PriorityManager/releases) page.
 
 **Installation:**
-1. Download the zip file
-2. Extract it to your RimWorld Mods folder:
+1. Download `PriorityManager-v1.0.0.zip` (or latest version) from Releases
+2. Extract the **entire** "Priority Manager" folder to your RimWorld Mods directory:
    - **Windows**: `C:\Program Files (x86)\Steam\steamapps\common\RimWorld\Mods\`
    - **Linux**: `~/.steam/steam/steamapps/common/RimWorld/Mods/` or `~/Games/SteamLibrary/steamapps/common/RimWorld/Mods/`
    - **Mac**: `~/Library/Application Support/Steam/steamapps/common/RimWorld/Mods/`

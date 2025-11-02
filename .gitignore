@@ -6,9 +6,13 @@ Source/obj/
 *.user
 *.log
 
-# Allow release DLLs
+# Allow release DLLs in Assemblies folder
 !Assemblies/*.dll
 !Assemblies/*.pdb
+
+# Releases directory (use GitHub Releases instead)
+releases/
+*.zip
 
 # IDE
 .vs/
