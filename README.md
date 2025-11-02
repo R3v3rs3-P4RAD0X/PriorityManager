@@ -16,6 +16,28 @@ Auto-assigns work priorities to colonists based on their skills, user-defined ro
 - **Complex Jobs Support**: Automatically detects and supports Complex Jobs mod's specialized work types (Repairing, Deconstructing, Building)
 - **Min/Max Worker Control**: Set minimum and maximum workers per job type (absolute or percentage-based)
 
+## Download
+
+### For Users
+
+**Quick Install:** Download the latest compiled version:
+- [PriorityManager-v1.0.0.zip](PriorityManager-v1.0.0.zip)
+
+**Installation:**
+1. Download the zip file
+2. Extract it to your RimWorld Mods folder:
+   - **Windows**: `C:\Program Files (x86)\Steam\steamapps\common\RimWorld\Mods\`
+   - **Linux**: `~/.steam/steam/steamapps/common/RimWorld/Mods/` or `~/Games/SteamLibrary/steamapps/common/RimWorld/Mods/`
+   - **Mac**: `~/Library/Application Support/Steam/steamapps/common/RimWorld/Mods/`
+3. Launch RimWorld and enable "Priority Manager" in the mod menu
+4. Start a new game or load an existing save
+
+For detailed installation instructions, see [INSTALLATION.md](INSTALLATION.md)
+
+### For Developers
+
+If you want to build from source, see the build instructions below.
+
 ## How to Build
 
 ### Requirements

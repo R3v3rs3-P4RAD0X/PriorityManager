@@ -1,12 +1,14 @@
-# Build artifacts
-*.dll
-*.pdb
+# Build artifacts (source)
+Source/bin/
+Source/obj/
 *.cache
 *.suo
 *.user
-bin/
-obj/
 *.log
+
+# Allow release DLLs
+!Assemblies/*.dll
+!Assemblies/*.pdb
 
 # IDE
 .vs/
