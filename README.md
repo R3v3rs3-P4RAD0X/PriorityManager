@@ -1,5 +1,7 @@
 # Priority Manager - RimWorld Mod
 
+![Priority Manager](About/Preview.png)
+
 Auto-assigns work priorities to colonists based on their skills, user-defined roles, and health status.
 
 ## Features
