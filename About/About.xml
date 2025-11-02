@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <name>Priority Manager</name>
+  <author>P4RAD0X</author>
+  <packageId>P4RAD0X.PriorityManager</packageId>
+  <description>Automatically assigns work priorities to colonists based on their skills, user-defined roles, and health status. 
+
+Features:
+- Auto-assign priorities based on colonist skills
+- Optional role presets (Researcher, Doctor, Farmer, etc.) or fully automatic best-job detection
+- Intelligent secondary job assignment (priorities 2-4)
+- Illness/injury response: reduces workload for sick colonists
+- Solo colonist survival mode: prioritizes essential tasks
+- Periodic auto-recalculation or manual control
+- Integrates directly into the Work tab
+- Min/Max worker controls per job type (absolute or percentage-based)
+- Compatible with Complex Jobs mod (auto-detects specialized work types)
+
+Set a colonist's primary role or let the system figure out their best jobs automatically!
+
+Compatibility: Works with Complex Jobs and any mod that adds custom work types.</description>
+  <supportedVersions>
+    <li>1.6</li>
+  </supportedVersions>
+</ModMetaData>
+

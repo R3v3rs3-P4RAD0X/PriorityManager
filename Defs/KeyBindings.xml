@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <KeyBindingCategoryDef>
+    <defName>PriorityManager</defName>
+    <label>Priority Manager</label>
+  </KeyBindingCategoryDef>
+  
+  <KeyBindingDef>
+    <defName>OpenPriorityManager</defName>
+    <label>Open Priority Manager</label>
+    <description>Opens the Priority Manager configuration window</description>
+    <category>PriorityManager</category>
+    <defaultKeyCodeA>P</defaultKeyCodeA>
+    <defaultKeyCodeB>None</defaultKeyCodeB>
+  </KeyBindingDef>
+</Defs>
+

@@ -1,0 +1,39 @@
+# Build artifacts
+*.dll
+*.pdb
+*.cache
+*.suo
+*.user
+bin/
+obj/
+*.log
+
+# IDE
+.vs/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Temporary files
+*.tmp
+*.bak
+*.old
+
+# Keep the Assemblies folder but ignore DLLs (we'll add the built DLL later)
+# Assemblies/*.dll is already covered above
+
+# Log files
+Player.log
+error.log
+
