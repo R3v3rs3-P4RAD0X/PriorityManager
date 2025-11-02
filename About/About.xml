@@ -15,10 +15,12 @@ Features:
 - Integrates directly into the Work tab
 - Min/Max worker controls per job type (absolute or percentage-based)
 - Compatible with Complex Jobs mod (auto-detects specialized work types)
+- Compatible with PriorityMaster mod (extends to 1-99 priority range)
+- Composite roles with multi-job workflows (Builder, Demolition, Medic, Industrialist)
 
 Set a colonist's primary role or let the system figure out their best jobs automatically!
 
-Compatibility: Works with Complex Jobs and any mod that adds custom work types.</description>
+Compatibility: Works with Complex Jobs, PriorityMaster, and any mod that adds custom work types.</description>
   <supportedVersions>
     <li>1.6</li>
   </supportedVersions>

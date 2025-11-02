@@ -275,16 +275,17 @@ namespace PriorityManager
         // Apply a composite role (multiple jobs with specific priorities)
         private static void ApplyCompositeRole(Pawn pawn, RolePreset role)
         {
-            var compositeJobs = RolePresetUtility.GetCompositeRoleJobs(role);
+            var compositeJobs = RolePresetUtility.GetCompositeRoleJobsScaled(role);
             if (compositeJobs == null || compositeJobs.Count == 0)
                 return;
 
-            // Apply each job in the composite role
+            // Apply each job in the composite role (priorities already scaled by GetCompositeRoleJobsScaled)
             foreach (var (workType, priority) in compositeJobs)
             {
                 if (CanDoWork(pawn, workType))
                 {
-                    SetPriority(pawn, workType, priority);
+                    // Don't scale again - already scaled in GetCompositeRoleJobsScaled
+                    pawn.workSettings.SetPriority(workType, priority);
                 }
             }
 
@@ -382,8 +383,8 @@ namespace PriorityManager
                     // Check if this is a composite role
                     if (RolePresetUtility.IsCompositeRole(data.assignedRole))
                     {
-                        // Composite role - assign multiple jobs with priorities
-                        var compositeJobs = RolePresetUtility.GetCompositeRoleJobs(data.assignedRole);
+                        // Composite role - assign multiple jobs with priorities (using scaled priorities)
+                        var compositeJobs = RolePresetUtility.GetCompositeRoleJobsScaled(data.assignedRole);
                         if (compositeJobs != null && compositeJobs.Count > 0)
                         {
                             // Track the first job as the primary for distribution purposes
@@ -394,12 +395,13 @@ namespace PriorityManager
                                 coveredWorkTypes.Add(firstJob.workType);
                             }
                             
-                            // Apply all composite role jobs
+                            // Apply all composite role jobs (priorities already scaled)
                             foreach (var (workType, priority) in compositeJobs)
                             {
                                 if (CanDoWork(pawn, workType))
                                 {
-                                    SetPriority(pawn, workType, priority);
+                                    // Don't scale again - already scaled in GetCompositeRoleJobsScaled
+                                    pawn.workSettings.SetPriority(workType, priority);
                                     coveredWorkTypes.Add(workType);
                                 }
                             }
@@ -886,9 +888,12 @@ namespace PriorityManager
             if (workType == null || !CanDoWork(pawn, workType))
                 return;
 
+            // Apply PriorityMaster scaling if enabled
+            int scaledPriority = PriorityMasterCompat.ScalePriority(priority);
+
             try
             {
-                pawn.workSettings.SetPriority(workType, priority);
+                pawn.workSettings.SetPriority(workType, scaledPriority);
             }
             catch (Exception ex)
             {

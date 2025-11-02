@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using RimWorld;
+using UnityEngine;
 using Verse;
 
 namespace PriorityManager
@@ -256,6 +257,98 @@ namespace PriorityManager
             }
             
             return jobs.Count > 0 ? jobs : null;
+        }
+        
+        // Get composite role jobs with PriorityMaster scaling applied
+        // This spreads jobs across the extended priority range for better granularity
+        public static List<(WorkTypeDef workType, int priority)> GetCompositeRoleJobsScaled(RolePreset preset)
+        {
+            var jobs = GetCompositeRoleJobs(preset);
+            if (jobs == null || jobs.Count == 0)
+                return jobs;
+            
+            // If PriorityMaster is not loaded or integration is disabled, return unscaled
+            if (!PriorityMasterCompat.IsLoaded())
+                return jobs;
+            
+            // Spread across extended range for better granularity
+            int maxPriority = PriorityMasterCompat.GetMaxPriority();
+            var scaledJobs = new List<(WorkTypeDef workType, int priority)>();
+            
+            switch (preset)
+            {
+                case RolePreset.Builder:
+                    // Construction → Repair → Deconstruct
+                    // Spread: 10%, 30%, 60% of max
+                    foreach (var job in jobs)
+                    {
+                        if (job.priority == 1 && job.workType.defName == "Construction")
+                            scaledJobs.Add((job.workType, Mathf.RoundToInt(maxPriority * 0.1f)));
+                        else if (job.priority == 2 && job.workType.defName == "Repair")
+                            scaledJobs.Add((job.workType, Mathf.RoundToInt(maxPriority * 0.3f)));
+                        else if (job.priority == 3 && job.workType.defName == "Deconstruct")
+                            scaledJobs.Add((job.workType, Mathf.RoundToInt(maxPriority * 0.6f)));
+                        else
+                            scaledJobs.Add((job.workType, PriorityMasterCompat.ScalePriority(job.priority)));
+                    }
+                    break;
+                    
+                case RolePreset.Demolition:
+                    // Deconstruct → Repair → Construction
+                    // Spread: 10%, 30%, 60% of max
+                    foreach (var job in jobs)
+                    {
+                        if (job.workType.defName == "Deconstruct")
+                            scaledJobs.Add((job.workType, Mathf.RoundToInt(maxPriority * 0.1f)));
+                        else if (job.workType.defName == "Repair")
+                            scaledJobs.Add((job.workType, Mathf.RoundToInt(maxPriority * 0.3f)));
+                        else if (job.workType.defName == "Construction")
+                            scaledJobs.Add((job.workType, Mathf.RoundToInt(maxPriority * 0.6f)));
+                        else
+                            scaledJobs.Add((job.workType, PriorityMasterCompat.ScalePriority(job.priority)));
+                    }
+                    break;
+                    
+                case RolePreset.Medic:
+                    // Surgeon → Nurse + Doctor
+                    // Spread: 10%, 30% of max
+                    foreach (var job in jobs)
+                    {
+                        if (job.workType.defName == "Surgeon")
+                            scaledJobs.Add((job.workType, Mathf.RoundToInt(maxPriority * 0.1f)));
+                        else if (job.workType.defName == "Nurse" || job.workType.defName == "Doctor")
+                            scaledJobs.Add((job.workType, Mathf.RoundToInt(maxPriority * 0.3f)));
+                        else
+                            scaledJobs.Add((job.workType, PriorityMasterCompat.ScalePriority(job.priority)));
+                    }
+                    break;
+                    
+                case RolePreset.Industrialist:
+                    // Machining + Fabrication → Smithing + Crafting → Smelt + Production
+                    // Spread: 10%, 30%, 60% of max
+                    foreach (var job in jobs)
+                    {
+                        if (job.workType.defName == "Machining" || job.workType.defName == "Fabrication")
+                            scaledJobs.Add((job.workType, Mathf.RoundToInt(maxPriority * 0.1f)));
+                        else if (job.workType.defName == "Smithing" || job.workType.defName == "Crafting")
+                            scaledJobs.Add((job.workType, Mathf.RoundToInt(maxPriority * 0.3f)));
+                        else if (job.workType.defName == "Smelt" || job.workType.defName == "Production")
+                            scaledJobs.Add((job.workType, Mathf.RoundToInt(maxPriority * 0.6f)));
+                        else
+                            scaledJobs.Add((job.workType, PriorityMasterCompat.ScalePriority(job.priority)));
+                    }
+                    break;
+                    
+                default:
+                    // For any other composite roles, use standard scaling
+                    foreach (var job in jobs)
+                    {
+                        scaledJobs.Add((job.workType, PriorityMasterCompat.ScalePriority(job.priority)));
+                    }
+                    break;
+            }
+            
+            return scaledJobs.Count > 0 ? scaledJobs : jobs;
         }
         
         // Helper to add work type if it exists

@@ -14,6 +14,7 @@ Auto-assigns work priorities to colonists based on their skills, user-defined ro
 - **Periodic Recalculation**: Auto-updates priorities every X hours (configurable)
 - **Manual Override**: Set colonists to manual control if needed
 - **Complex Jobs Support**: Automatically detects and supports Complex Jobs mod's specialized work types (Repairing, Deconstructing, Building)
+- **PriorityMaster Support**: Full integration with PriorityMaster (1-99 priorities) - automatic scaling, presets, and custom mapping
 - **Min/Max Worker Control**: Set minimum and maximum workers per job type (absolute or percentage-based)
 
 ## Download
@@ -160,6 +161,35 @@ Priority Manager automatically detects and supports the **Complex Jobs** mod, wh
 
 **Note**: The mod uses dynamic detection, so it will work with any mod that adds custom `WorkTypeDef` entries.
 
+### PriorityMaster
+
+Priority Manager now supports [PriorityMaster](https://steamcommunity.com/sharedfiles/filedetails/?id=1994006442), which extends work priorities from 1-4 to 1-99!
+
+**Features:**
+- **Automatic Detection**: Mod automatically detects if PriorityMaster is installed
+- **Dynamic Scaling**: Priorities are automatically scaled to PriorityMaster's extended range
+  - Priority 1 → 10% of max (default: 10 for max 99)
+  - Priority 2 → 30% of max (default: 30 for max 99)
+  - Priority 3 → 60% of max (default: 60 for max 99)
+  - Priority 4 → 90% of max (default: 90 for max 99)
+- **Custom Mapping**: Configure exact priority values in the PriorityMaster tab
+- **Distribution Presets**:
+  - **Tight**: Close spacing (10, 20, 30, 40)
+  - **Balanced**: Default spread (10, 30, 60, 90)
+  - **Wide**: Maximum spread (5, 25, 55, 95)
+  - **Custom**: Define your own mapping
+- **Composite Roles**: Builder/Demolition/Medic roles spread across full range for maximum granularity
+- **Seamless Integration**: Works with or without PriorityMaster - no manual configuration needed
+
+**How to use:**
+1. Install both Priority Manager and PriorityMaster
+2. Open Priority Manager settings (Press P)
+3. Go to the "PriorityMaster" tab
+4. Choose your preferred preset or customize mapping
+5. Click "Recalculate All Priorities"
+
+Your colonists now have much finer control over work priorities!
+
 ### Other Mods
 Priority Manager is designed to work with any mod that adds custom work types. The system automatically:
 - Detects all work types from `DefDatabase<WorkTypeDef>`
@@ -232,6 +262,19 @@ Priority Manager is designed to work with any mod that adds custom work types. T
 - [ ] Maximum workers are respected (no more than N colonists assigned)
 - [ ] Percentage mode correctly calculates based on colony size
 - [ ] Disabled colonists are excluded from auto-assignment but counted for min/max limits
+
+### PriorityMaster Compatibility (if mod is loaded)
+- [ ] PriorityMaster is detected and shown in settings
+- [ ] Priority scaling works correctly (1→10, 2→30, 3→60, 4→90 by default)
+- [ ] Can toggle PriorityMaster integration on/off
+- [ ] Tight preset works (10, 20, 30, 40)
+- [ ] Balanced preset works (10, 30, 60, 90)
+- [ ] Wide preset works (5, 25, 55, 95)
+- [ ] Custom mapping sliders work and save correctly
+- [ ] Composite roles spread across extended range properly
+- [ ] Settings persist after save/load
+- [ ] Works with Complex Jobs + PriorityMaster simultaneously
+- [ ] Disabling integration reverts to vanilla 1-4 priorities
 
 ## Known Limitations
 

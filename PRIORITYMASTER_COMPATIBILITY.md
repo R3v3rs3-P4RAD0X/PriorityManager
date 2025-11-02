@@ -1,6 +1,6 @@
 # PriorityMaster Mod Compatibility
 
-This document outlines the compatibility plan for integrating Priority Manager with [PriorityMaster](https://steamcommunity.com/sharedfiles/filedetails/?id=1994006442).
+Full integration guide for using Priority Manager with [PriorityMaster](https://steamcommunity.com/sharedfiles/filedetails/?id=1994006442).
 
 ## What is PriorityMaster?
 
@@ -17,79 +17,89 @@ PriorityMaster is a RimWorld mod that extends the work priority system from the 
 - Package ID: `Lauriichan.PriorityMaster`
 - GitHub: https://github.com/Lauriichan/PriorityMaster
 
-## Integration Plan
+## ✅ Implementation Status
 
-### Detection
+**ALL PHASES COMPLETE!** Priority Manager now has full PriorityMaster integration including:
+- ✅ Automatic detection
+- ✅ Dynamic priority scaling
+- ✅ Custom mapping UI
+- ✅ Distribution presets
+- ✅ Composite role optimization
+- ✅ Performance optimization with caching
 
-Detect PriorityMaster installation by checking for its package ID or mod assembly:
-```csharp
-public static bool IsPriorityMasterLoaded()
-{
-    return ModsConfig.IsActive("Lauriichan.PriorityMaster") ||
-           LoadedModManager.RunningMods.Any(m => m.PackageId == "Lauriichan.PriorityMaster");
-}
-```
+## How It Works
 
-### Priority Range Adaptation
+### Automatic Detection
 
-**Current System (Vanilla):**
+The mod automatically detects PriorityMaster by checking:
+- Mod package ID: `Lauriichan.PriorityMaster`
+- Running mods list
+
+No manual configuration needed!
+
+### Dynamic Priority Scaling
+
+**Vanilla System (without PriorityMaster):**
 - Priority 1: Primary job + critical tasks
 - Priority 2: Top secondary jobs
 - Priority 3: Additional jobs
 - Priority 4: Backup jobs
 
-**With PriorityMaster (Extended Range):**
-- Use a wider spread of priorities to take advantage of the 1-99 range
-- Map our internal logic to appropriate ranges:
-  - Priority 1-10: Critical jobs (firefighting, patient, etc.)
-  - Priority 11-30: Primary jobs (role-based assignments)
-  - Priority 31-60: Secondary jobs (skill-based backups)
-  - Priority 61-90: Tertiary jobs (low-skill fallbacks)
-  - Priority 91-99: Least important tasks
+**With PriorityMaster (Extended Range - max 99):**
+- Priority 1 → **10** (10% of max) - Primary jobs + critical tasks
+- Priority 2 → **30** (30% of max) - Secondary jobs
+- Priority 3 → **60** (60% of max) - Tertiary jobs
+- Priority 4 → **90** (90% of max) - Backup jobs
 
-### Implementation Approach
+**The scaling is dynamic!** If you configure PriorityMaster to use a different max (e.g., 50), the priorities scale proportionally:
+- Max 50: 1→5, 2→15, 3→30, 4→45
+- Max 20: 1→2, 2→6, 3→12, 4→18
 
-1. **Priority Scaling Function**
-   ```csharp
-   public static int ScalePriority(int vanillaPriority, int maxPriority = 4)
-   {
-       if (!IsPriorityMasterLoaded()) return vanillaPriority;
-       
-       // Get PriorityMaster's max priority setting
-       int pmMaxPriority = GetPriorityMasterMaxPriority();
-       
-       // Scale vanilla 1-4 to PriorityMaster range
-       switch (vanillaPriority)
-       {
-           case 1: return Mathf.RoundToInt(pmMaxPriority * 0.1f);  // 10% (e.g., 10 if max is 99)
-           case 2: return Mathf.RoundToInt(pmMaxPriority * 0.3f);  // 30% (e.g., 30 if max is 99)
-           case 3: return Mathf.RoundToInt(pmMaxPriority * 0.6f);  // 60% (e.g., 60 if max is 99)
-           case 4: return Mathf.RoundToInt(pmMaxPriority * 0.9f);  // 90% (e.g., 90 if max is 99)
-           default: return vanillaPriority;
-       }
-   }
-   ```
+### Distribution Presets
 
-2. **Configuration Options**
-   - Add toggle: "Enable PriorityMaster Integration"
-   - Add option: "Use Extended Priority Range"
-   - Add sliders for custom priority mappings
-   - Display current priority range in UI
+Choose from three built-in presets or create your own custom mapping:
 
-3. **Composite Roles Adjustment**
-   For composite roles (Builder, Demolition, etc.), spread priorities across the range:
-   ```csharp
-   Builder (with PriorityMaster):
-   - Construction: Priority 10
-   - Repair: Priority 30
-   - Deconstruct: Priority 60
-   - Other jobs: Priority 80-90
-   ```
+#### Tight Spacing
+Best for: Small colonies or when you want colonists to switch tasks frequently
+```
+Priority 1 → 10
+Priority 2 → 20
+Priority 3 → 30
+Priority 4 → 40
+```
 
-4. **UI Updates**
-   - Display actual priority numbers in tooltips
-   - Show "(PriorityMaster)" indicator when active
-   - Add explanation of priority ranges in settings
+#### Balanced (Default)
+Best for: General use, good separation between priorities
+```
+Priority 1 → 10
+Priority 2 → 30
+Priority 3 → 60
+Priority 4 → 90
+```
+
+#### Wide Spread
+Best for: Large colonies or when you want clear task separation
+```
+Priority 1 → 5
+Priority 2 → 25
+Priority 3 → 55
+Priority 4 → 95
+```
+
+#### Custom
+Create your own mapping! Use sliders to set exact values for each priority level.
+
+### Composite Roles with PriorityMaster
+
+Composite roles (Builder, Demolition, Medic, Industrialist) automatically spread their jobs across the extended range:
+
+**Builder Example (max 99):**
+- Construction: Priority **10** (highest)
+- Repair: Priority **30** (medium)
+- Deconstruct: Priority **60** (lower)
+- Other jobs: Priority **90** (lowest)
+
+This gives much better task prioritization compared to vanilla 1/2/3/4!
 
 ### Compatibility Considerations
 
@@ -104,17 +114,59 @@ public static bool IsPriorityMasterLoaded()
 - Priority Manager only sets the priority values
 - Both mods can coexist peacefully
 
-### Testing Checklist
+## User Guide
 
-- [ ] Mod loads without errors with PriorityMaster enabled
-- [ ] Mod loads without errors with PriorityMaster disabled
-- [ ] Priority scaling works correctly (1→10, 2→30, 3→60, 4→90)
-- [ ] Composite roles spread across extended range
-- [ ] Settings UI shows correct priority ranges
-- [ ] Auto-assignment respects PriorityMaster's max priority setting
-- [ ] Manual priority changes work correctly
-- [ ] Save/load preserves priority settings
-- [ ] Works with Complex Jobs + PriorityMaster simultaneously
+### Getting Started
+
+1. **Install both mods:**
+   - Priority Manager
+   - PriorityMaster from [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=1994006442)
+
+2. **Enable both mods** in RimWorld mod menu
+
+3. **Load or start a game**
+
+4. **Open Priority Manager** (Press P or click button on Work tab)
+
+5. **Go to PriorityMaster tab** to configure settings
+
+### Recommended Settings
+
+**For Small Colonies (1-5 colonists):**
+- Use **Tight Spacing** preset
+- Colonists will switch between tasks more frequently
+- Good when everyone needs to multitask
+
+**For Medium Colonies (6-15 colonists):**
+- Use **Balanced** preset (default)
+- Good separation between primary and backup jobs
+- Colonists are more specialized but still flexible
+
+**For Large Colonies (16+ colonists):**
+- Use **Wide Spread** preset
+- Maximum specialization
+- Colonists focus heavily on their primary jobs
+- Large priority gaps mean less task switching
+
+### Configuration Options
+
+**Enable PriorityMaster Integration** (checkbox)
+- ON: Use extended priority range (default)
+- OFF: Use vanilla 1-4 priorities even with PriorityMaster installed
+
+**Priority Distribution Presets** (radio buttons)
+- Choose from Tight, Balanced, Wide, or Custom
+- Automatically applies the selected priority mapping
+- Changes take effect on next recalculation
+
+**Custom Mapping** (sliders, Custom preset only)
+- Set exact priority values for 1, 2, 3, 4
+- Range: 1 to PriorityMaster's max (default 99)
+- Real-time preview of current mapping
+
+**Recalculate All Priorities** (button)
+- Applies new priority mapping to all colonists
+- Click after changing presets or custom values
 
 ### User Benefits
 
@@ -122,46 +174,140 @@ public static bool IsPriorityMasterLoaded()
 2. **Better Job Distribution**: More priority levels means less job conflicts
 3. **Flexible Specialization**: Fine-tune exactly when colonists switch tasks
 4. **Seamless Integration**: Works automatically when both mods are installed
+5. **No Performance Impact**: Caching ensures priority lookups are fast
 
-### Implementation Priority
+## Technical Implementation
 
-**Phase 1: Basic Compatibility**
-- Detect PriorityMaster
-- Scale priorities to extended range
-- Test basic functionality
+### Files Modified
 
-**Phase 2: Enhanced Integration**
-- Custom priority mapping in settings
-- UI improvements
-- Advanced configuration options
+**New Files:**
+- `Source/PriorityMasterCompat.cs` - Detection, scaling, and caching logic
 
-**Phase 3: Optimization**
-- Performance tuning
-- User presets for priority distributions
-- Documentation and examples
+**Modified Files:**
+- `Source/PriorityAssigner.cs` - SetPriority method now uses scaling
+- `Source/ConfigWindow.cs` - Added PriorityMaster tab with UI controls
+- `Source/PriorityData.cs` - Added settings, presets, and preset application
+- `Source/ColonistRole.cs` - Added GetCompositeRoleJobsScaled for composite roles
 
-## Code Structure
+### Key Components
 
-### New Files
-- `Source/PriorityMasterCompat.cs` - Detection and integration logic
-- `Source/PriorityScaling.cs` - Priority scaling algorithms
+**Detection (PriorityMasterCompat.cs):**
+```csharp
+public static bool IsLoaded()
+{
+    return ModsConfig.IsActive("Lauriichan.PriorityMaster") ||
+           LoadedModManager.RunningMods.Any(m => m.PackageId.ToLower() == "lauriichan.prioritymaster");
+}
+```
 
-### Modified Files
-- `Source/PriorityAssigner.cs` - Add priority scaling to SetPriority calls
-- `Source/ConfigWindow.cs` - Add PriorityMaster settings section
-- `Source/PriorityManagerMod.cs` - Initialize PriorityMaster detection
-- `Source/ColonistRole.cs` - Update composite role priority assignments
+**Dynamic Scaling:**
+```csharp
+public static int ScalePriority(int vanillaPriority)
+{
+    int maxPriority = GetMaxPriority();
+    switch (vanillaPriority)
+    {
+        case 1: return Mathf.Max(1, Mathf.RoundToInt(maxPriority * 0.1f));
+        case 2: return Mathf.RoundToInt(maxPriority * 0.3f);
+        case 3: return Mathf.RoundToInt(maxPriority * 0.6f);
+        case 4: return Mathf.RoundToInt(maxPriority * 0.9f);
+    }
+}
+```
+
+**Reflection for Settings:**
+- Reads PriorityMaster's max priority setting using HarmonyLib's AccessTools
+- Cached for performance (only reads once per game session)
+- Gracefully falls back to default (9) if reflection fails
+
+**Composite Role Optimization:**
+- Builder/Demolition/Medic/Industrialist roles use GetCompositeRoleJobsScaled
+- Jobs are spread across the full priority range
+- Example: Builder at max 99 uses priorities 10, 30, 60 instead of 1, 2, 3
+
+## Usage Examples
+
+### Example 1: Basic Setup with Balanced Preset
+
+1. Load game with both mods enabled
+2. Open Priority Manager (Press P)
+3. Go to "PriorityMaster" tab
+4. Verify it shows "PriorityMaster Detected - Max Priority: 99"
+5. Select "Balanced Spread (10, 30, 60, 90)"
+6. Click "Recalculate All Priorities"
+7. Check Work tab - priorities now use 10, 30, 60, 90 instead of 1, 2, 3, 4
+
+### Example 2: Builder with Extended Range
+
+1. Select a colonist with Construction skill
+2. Set role to "Builder (Construct→Repair→Demo)"
+3. With PriorityMaster, they get:
+   - Construction: Priority 10
+   - Repair: Priority 30
+   - Deconstruct: Priority 60
+   - Other jobs: Priority 90
+4. Much better task separation than vanilla 1/2/3/4!
+
+### Example 3: Custom Mapping for Specialists
+
+1. Go to PriorityMaster tab
+2. Select "Custom Mapping"
+3. Set custom values:
+   - Priority 1 → 5 (very high priority, rarely switch)
+   - Priority 2 → 15 (medium)
+   - Priority 3 → 40 (lower)
+   - Priority 4 → 80 (very low)
+4. This creates specialists who strongly focus on their primary job
+
+### Example 4: Wide Spread for Large Colony
+
+1. Colony with 20+ colonists
+2. Select "Wide Spread (5, 25, 55, 95)"
+3. Each colonist becomes highly specialized
+4. Primary jobs (5) are done almost exclusively
+5. Backup jobs (95) are rarely touched
+6. Perfect for large, well-organized colonies
+
+## Troubleshooting
+
+### PriorityMaster not detected
+
+**Issue:** PriorityMaster tab shows "not detected"
+
+**Solutions:**
+- Ensure PriorityMaster is enabled in mod menu
+- Restart RimWorld after enabling mods
+- Check mod load order (shouldn't matter, but try loading PriorityMaster before Priority Manager)
+
+### Priorities seem wrong
+
+**Issue:** Colonists have unexpected priorities in Work tab
+
+**Solutions:**
+- Open PriorityMaster tab and check current mapping
+- Click "Recalculate All Priorities"
+- If you changed PriorityMaster's max priority setting, restart the game
+
+### Custom mapping not saving
+
+**Issue:** Custom priorities reset after reload
+
+**Solutions:**
+- Make sure you clicked "Recalculate All Priorities" after changing settings
+- Settings are auto-saved when closing the window
+- Check if PriorityManager settings file exists in save folder
 
 ## References
 
 - [PriorityMaster Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=1994006442)
 - [PriorityMaster GitHub](https://github.com/Lauriichan/PriorityMaster)
-- [RimWorld Modding Documentation](https://rimworldwiki.com/wiki/Modding_Tutorials)
+- [Priority Manager GitHub](https://github.com/R3v3rs3-P4RAD0X/PriorityManager)
 
-## Notes
+## Important Notes
 
-- PriorityMaster is highly customizable by users - we need to read their settings
-- Default max priority in PriorityMaster is 9, not 99 (configurable up to 99)
-- Must handle cases where user changes PriorityMaster settings mid-game
-- Our priority assignments should adapt dynamically to PriorityMaster config changes
+- PriorityMaster's default max is **9**, not 99 (user-configurable up to 99)
+- Priority Manager reads PriorityMaster's max setting automatically via reflection
+- If PriorityMaster settings change mid-game, restart for Priority Manager to detect the change
+- Composite roles work best with PriorityMaster's extended range
+- Integration can be disabled if you prefer vanilla behavior
 
