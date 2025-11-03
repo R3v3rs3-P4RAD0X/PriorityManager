@@ -3,7 +3,7 @@
   <name>Priority Manager</name>
   <author>P4RAD0X</author>
   <packageId>p4rad0x.prioritymanager</packageId>
-  <modVersion>1.1.0</modVersion>
+  <modVersion>1.1.1</modVersion>
   <description>Automatically assigns work priorities to colonists based on their skills, user-defined roles, and health status. 
 
 Features:
