@@ -7,8 +7,8 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <OutputPath>../Assemblies/</OutputPath>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <RootNamespace>P4X.PriorityManager</RootNamespace>
-    <AssemblyName>P4X.PriorityManager</AssemblyName>
+    <RootNamespace>PriorityManager</RootNamespace>
+    <AssemblyName>PriorityManager</AssemblyName>
   </PropertyGroup>
 
   <PropertyGroup>
