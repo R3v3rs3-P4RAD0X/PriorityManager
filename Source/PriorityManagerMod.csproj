@@ -2,11 +2,13 @@
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
     <LangVersion>latest</LangVersion>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <OutputPath>../Assemblies/</OutputPath>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <RootNamespace>PriorityManager</RootNamespace>
-    <AssemblyName>PriorityManager</AssemblyName>
+    <RootNamespace>P4X.PriorityManager</RootNamespace>
+    <AssemblyName>P4X.PriorityManager</AssemblyName>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -36,4 +38,3 @@
     <PackageReference Include="Lib.Harmony" Version="2.3.3" />
   </ItemGroup>
 </Project>
-
