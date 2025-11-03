@@ -10,6 +10,9 @@ Source/obj/
 !Assemblies/*.dll
 !Assemblies/*.pdb
 
+# But exclude Harmony (already loaded by RimWorld)
+Assemblies/0Harmony.dll
+
 # Releases directory (use GitHub Releases instead)
 releases/
 *.zip
