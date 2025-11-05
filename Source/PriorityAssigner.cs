@@ -184,6 +184,13 @@ namespace PriorityManager
             // Always enable critical jobs at priority 1
             SetPriority(pawn, WorkTypeDefOf.Firefighter, 1);
 
+            // Check if this is a custom role
+            if (data.assignedRole == RolePreset.Custom && !string.IsNullOrEmpty(data.customRoleId))
+            {
+                ApplyCustomRole(pawn, data.customRoleId);
+                return; // Custom roles handle all job assignments
+            }
+
             // Check if this is a composite role (multiple jobs with priorities)
             if (RolePresetUtility.IsCompositeRole(data.assignedRole))
             {
@@ -272,6 +279,134 @@ namespace PriorityManager
             return counts;
         }
 
+        // Apply a custom role (user-defined jobs with importance levels)
+        private static void ApplyCustomRole(Pawn pawn, string roleId)
+        {
+            var settings = PriorityManagerMod.settings;
+            var customRole = settings.GetCustomRole(roleId);
+            
+            if (customRole == null || !customRole.IsValid())
+            {
+                Log.Warning($"PriorityManager: Custom role {roleId} not found or invalid for {pawn.Name.ToStringShort}. Falling back to Auto.");
+                return;
+            }
+
+            var sortedJobs = customRole.GetSortedJobs();
+            var assignedWorkTypes = new HashSet<WorkTypeDef>();
+            
+            // Group jobs by importance level
+            var jobsByImportance = new Dictionary<JobImportance, List<CustomRoleJobEntry>>();
+            foreach (var job in sortedJobs)
+            {
+                if (!jobsByImportance.ContainsKey(job.importance))
+                    jobsByImportance[job.importance] = new List<CustomRoleJobEntry>();
+                jobsByImportance[job.importance].Add(job);
+            }
+            
+            // Apply jobs in importance order (Critical -> High -> Normal -> Low -> VeryLow)
+            var importanceOrder = new[] { JobImportance.Critical, JobImportance.High, JobImportance.Normal, JobImportance.Low, JobImportance.VeryLow };
+            
+            foreach (var importance in importanceOrder)
+            {
+                if (!jobsByImportance.ContainsKey(importance))
+                    continue;
+                
+                var jobs = jobsByImportance[importance];
+                int basePriority = GetBasePriorityForImportance(importance);
+                
+                for (int i = 0; i < jobs.Count; i++)
+                {
+                    var job = jobs[i];
+                    var workType = job.GetWorkTypeDef();
+                    
+                    if (workType == null || !CanDoWork(pawn, workType))
+                        continue;
+                    
+                    // Calculate priority within the importance tier
+                    int priority = CalculatePriorityForCustomJob(importance, i, jobs.Count);
+                    SetPriority(pawn, workType, priority);
+                    assignedWorkTypes.Add(workType);
+                }
+            }
+            
+            // Fill remaining slots with best available jobs at priority 4 (optional backup jobs)
+            var availableWorkTypes = DefDatabase<WorkTypeDef>.AllDefsListForReading
+                .Where(wt => wt.visible && !assignedWorkTypes.Contains(wt) && CanDoWork(pawn, wt) && wt != WorkTypeDefOf.Firefighter)
+                .ToList();
+
+            if (availableWorkTypes.Count > 0)
+            {
+                var scores = new Dictionary<WorkTypeDef, float>();
+                foreach (var workType in availableWorkTypes)
+                {
+                    scores[workType] = CalculateWorkTypeScore(pawn, workType);
+                }
+
+                // Assign top 3 remaining jobs at priority 4 as backup
+                var topJobs = scores.OrderByDescending(kvp => kvp.Value).Take(3).ToList();
+                foreach (var kvp in topJobs)
+                {
+                    SetPriority(pawn, kvp.Key, 4);
+                }
+            }
+        }
+        
+        // Get base priority for importance level
+        private static int GetBasePriorityForImportance(JobImportance importance)
+        {
+            switch (importance)
+            {
+                case JobImportance.Critical:
+                    return 1;
+                case JobImportance.High:
+                    return 1;
+                case JobImportance.Normal:
+                    return 2;
+                case JobImportance.Low:
+                    return 3;
+                case JobImportance.VeryLow:
+                    return 4;
+                case JobImportance.Disabled:
+                    return 0; // Should not be assigned
+                default:
+                    return 3;
+            }
+        }
+        
+        // Calculate specific priority for a job within its importance tier
+        private static int CalculatePriorityForCustomJob(JobImportance importance, int indexInTier, int totalInTier)
+        {
+            switch (importance)
+            {
+                case JobImportance.Critical:
+                    return 1; // All critical jobs get priority 1
+                    
+                case JobImportance.High:
+                    // High importance: first half get 1, rest get 2
+                    return (indexInTier < totalInTier / 2f) ? 1 : 2;
+                    
+                case JobImportance.Normal:
+                    // Normal importance: spread across 2-3
+                    if (indexInTier < totalInTier * 0.5f)
+                        return 2;
+                    else
+                        return 3;
+                    
+                case JobImportance.Low:
+                    // Low importance: spread across 3-4
+                    if (indexInTier < totalInTier * 0.3f)
+                        return 3;
+                    else
+                        return 4;
+                    
+                case JobImportance.VeryLow:
+                    return 4; // All very low jobs get priority 4
+                    
+                default:
+                    return 3;
+            }
+        }
+
         // Apply a composite role (multiple jobs with specific priorities)
         private static void ApplyCompositeRole(Pawn pawn, RolePreset role)
         {
@@ -340,6 +475,26 @@ namespace PriorityManager
 
             int totalColonists = colonists.Count; // Include manual colonists in total
 
+            // Scan map for active work needs
+            Map map = colonists.FirstOrDefault()?.Map;
+            Dictionary<WorkTypeDef, float> workUrgency = new Dictionary<WorkTypeDef, float>();
+            HashSet<WorkTypeDef> activeWorkTypes = new HashSet<WorkTypeDef>();
+            
+            if (map != null)
+            {
+                workUrgency = WorkScanner.ScoreWorkUrgency(map);
+                activeWorkTypes = WorkScanner.GetActiveWorkTypes(map);
+                
+                if (workUrgency.Count > 0)
+                {
+                    Log.Message($"PriorityManager: Found {workUrgency.Count} work types with active work:");
+                    foreach (var kvp in workUrgency.OrderByDescending(x => x.Value).Take(5))
+                    {
+                        Log.Message($"  - {kvp.Key.labelShort}: urgency score {kvp.Value:F1}");
+                    }
+                }
+            }
+
             // Clear all priorities first
             foreach (var pawn in managedColonists)
             {
@@ -363,6 +518,20 @@ namespace PriorityManager
                     if (CanDoWork(pawn, workType))
                     {
                         float score = CalculateWorkTypeScore(pawn, workType);
+                        
+                        // Boost score if this work type has active work
+                        if (activeWorkTypes.Contains(workType))
+                        {
+                            score *= 1.5f; // 50% boost for jobs with active work
+                        }
+                        
+                        // Further boost based on urgency score
+                        if (workUrgency.TryGetValue(workType, out float urgency))
+                        {
+                            // Add urgency bonus (normalized to reasonable range)
+                            score += urgency * 10f;
+                        }
+                        
                         rankings.Add((pawn, score));
                     }
                 }
@@ -374,14 +543,36 @@ namespace PriorityManager
             var assignedPrimaryJobs = new Dictionary<Pawn, WorkTypeDef>();
             var coveredWorkTypes = new HashSet<WorkTypeDef>();
 
-            // First pass: assign preset roles (including composite roles)
+            // First pass: assign preset roles (including custom and composite roles)
             foreach (var pawn in managedColonists)
             {
                 var data = gameComp.GetData(pawn);
                 if (data != null && data.assignedRole != RolePreset.Auto && data.assignedRole != RolePreset.Manual)
                 {
+                    // Check if this is a custom role
+                    if (data.assignedRole == RolePreset.Custom && !string.IsNullOrEmpty(data.customRoleId))
+                    {
+                        // Custom role - assign using ApplyCustomRole
+                        ApplyCustomRole(pawn, data.customRoleId);
+                        
+                        // Track first job as primary for distribution purposes
+                        var customRole = settings.GetCustomRole(data.customRoleId);
+                        if (customRole != null && customRole.jobs.Count > 0)
+                        {
+                            var firstJob = customRole.GetSortedJobs().FirstOrDefault();
+                            if (firstJob != null)
+                            {
+                                var workType = firstJob.GetWorkTypeDef();
+                                if (workType != null && CanDoWork(pawn, workType))
+                                {
+                                    assignedPrimaryJobs[pawn] = workType;
+                                    coveredWorkTypes.Add(workType);
+                                }
+                            }
+                        }
+                    }
                     // Check if this is a composite role
-                    if (RolePresetUtility.IsCompositeRole(data.assignedRole))
+                    else if (RolePresetUtility.IsCompositeRole(data.assignedRole))
                     {
                         // Composite role - assign multiple jobs with priorities (using scaled priorities)
                         var compositeJobs = RolePresetUtility.GetCompositeRoleJobsScaled(data.assignedRole);
@@ -460,7 +651,10 @@ namespace PriorityManager
                         int totalWorkers = currentAutoWorkers + currentManualWorkers;
                         
                         if (totalWorkers >= maxWorkers)
+                        {
+                            Log.Message($"PriorityManager: Skipping {workType.labelShort} for {colonist.Name.ToStringShort} - max workers ({maxWorkers}) reached");
                             continue; // Skip if max workers reached
+                        }
                     }
 
                     float score = CalculateWorkTypeScore(colonist, workType);
@@ -549,17 +743,57 @@ namespace PriorityManager
                 }
             }
             
-            // Enforce minimum workers: ensure all jobs meet their minimum worker count
-            EnforceMinimumWorkers(managedColonists, allWorkTypes, assignedPrimaryJobs, manualColonistJobs, totalColonists, settings);
-
             // Fourth pass: assign remaining secondary jobs (priorities 2-4) for complete coverage
             foreach (var colonist in managedColonists)
             {
                 assignedPrimaryJobs.TryGetValue(colonist, out WorkTypeDef primaryJob);
-                AssignSecondaryJobsComplete(colonist, primaryJob, assignedPrimaryJobs, allWorkTypes);
+                AssignSecondaryJobsComplete(colonist, primaryJob, assignedPrimaryJobs, allWorkTypes, manualColonistJobs, totalColonists, settings);
             }
+            
+            // Fifth pass: Enforce minimum workers AFTER secondary assignment to ensure requirements are met
+            EnforceMinimumWorkers(managedColonists, allWorkTypes, assignedPrimaryJobs, manualColonistJobs, totalColonists, settings);
+            
+            // Log final worker counts for jobs with min/max settings
+            LogFinalWorkerCounts(allWorkTypes, colonists, settings, totalColonists);
         }
 
+        private static void LogFinalWorkerCounts(List<WorkTypeDef> allWorkTypes, List<Pawn> allColonists, PriorityManagerSettings settings, int totalColonists)
+        {
+            var jobsWithSettings = allWorkTypes.Where(wt => 
+                settings.GetMinWorkersForJob(wt, totalColonists) > 0 || 
+                settings.GetMaxWorkersForJob(wt, totalColonists) > 0).ToList();
+            
+            if (jobsWithSettings.Count == 0)
+                return;
+            
+            Log.Message("PriorityManager: === Final Worker Counts ===");
+            foreach (var workType in jobsWithSettings)
+            {
+                int minWorkers = settings.GetMinWorkersForJob(workType, totalColonists);
+                int maxWorkers = settings.GetMaxWorkersForJob(workType, totalColonists);
+                int currentWorkers = 0;
+                
+                foreach (var colonist in allColonists)
+                {
+                    if (colonist.workSettings != null && colonist.workSettings.GetPriority(workType) > 0)
+                        currentWorkers++;
+                }
+                
+                string status = "";
+                if (minWorkers > 0 && currentWorkers < minWorkers)
+                    status = " [BELOW MIN]";
+                else if (maxWorkers > 0 && currentWorkers > maxWorkers)
+                    status = " [ABOVE MAX]";
+                else if (minWorkers > 0 && currentWorkers >= minWorkers)
+                    status = " [OK]";
+                
+                string minStr = minWorkers > 0 ? minWorkers.ToString() : "-";
+                string maxStr = maxWorkers > 0 ? maxWorkers.ToString() : "∞";
+                
+                Log.Message($"PriorityManager: {workType.labelShort}: {currentWorkers} workers (min: {minStr}, max: {maxStr}){status}");
+            }
+        }
+        
         private static void EnforceMinimumWorkers(
             List<Pawn> managedColonists,
             List<WorkTypeDef> allWorkTypes,
@@ -568,10 +802,14 @@ namespace PriorityManager
             int totalColonists,
             PriorityManagerSettings settings)
         {
+            Log.Message("PriorityManager: Enforcing minimum worker requirements...");
+            int enforcementCount = 0;
+            
             // For each job type, check if it meets the minimum worker requirement
             foreach (var workType in allWorkTypes)
             {
                 int minWorkers = settings.GetMinWorkersForJob(workType, totalColonists);
+                int maxWorkers = settings.GetMaxWorkersForJob(workType, totalColonists);
                 if (minWorkers <= 0)
                     continue; // No minimum set
                 
@@ -584,6 +822,9 @@ namespace PriorityManager
                 int needed = minWorkers - totalWorkers;
                 if (needed <= 0)
                     continue; // Minimum already met
+                
+                Log.Message($"PriorityManager: {workType.labelShort} needs {needed} more workers (current: {totalWorkers}, min: {minWorkers}, max: {maxWorkers})");
+                enforcementCount++;
                 
                 // Find best available colonists who aren't already assigned this as primary
                 var candidates = new List<(Pawn pawn, float score)>();
@@ -602,21 +843,47 @@ namespace PriorityManager
                 
                 // Sort by score and assign top candidates
                 var sortedCandidates = candidates.OrderByDescending(c => c.score).Take(needed).ToList();
+                int assigned = 0;
                 foreach (var (colonist, score) in sortedCandidates)
                 {
+                    // Check max workers limit before assigning
+                    if (maxWorkers > 0)
+                    {
+                        int newAutoWorkers = assignedPrimaryJobs.Count(kvp => kvp.Value == workType);
+                        int newTotalWorkers = newAutoWorkers + currentManualWorkers;
+                        if (newTotalWorkers >= maxWorkers)
+                        {
+                            Log.Message($"PriorityManager: Cannot assign more to {workType.labelShort} - max workers ({maxWorkers}) reached");
+                            break;
+                        }
+                    }
+                    
                     // Check if this colonist already has a primary job
                     if (assignedPrimaryJobs.ContainsKey(colonist))
                     {
                         // Assign as secondary job (priority 2)
                         SetPriority(colonist, workType, 2);
+                        Log.Message($"PriorityManager: Assigned {colonist.Name.ToStringShort} to {workType.labelShort} as secondary (priority 2)");
                     }
                     else
                     {
                         // No primary job yet, make this their primary
                         assignedPrimaryJobs[colonist] = workType;
                         SetPriority(colonist, workType, 1);
+                        Log.Message($"PriorityManager: Assigned {colonist.Name.ToStringShort} to {workType.labelShort} as primary (priority 1)");
                     }
+                    assigned++;
                 }
+                
+                if (assigned < needed)
+                {
+                    Log.Warning($"PriorityManager: Could only assign {assigned}/{needed} workers for {workType.labelShort} (not enough capable colonists)");
+                }
+            }
+            
+            if (enforcementCount > 0)
+            {
+                Log.Message($"PriorityManager: Minimum worker enforcement completed - processed {enforcementCount} jobs");
             }
         }
 
@@ -651,13 +918,12 @@ namespace PriorityManager
             }
         }
 
-        private static void AssignSecondaryJobsComplete(Pawn pawn, WorkTypeDef primaryWork, Dictionary<Pawn, WorkTypeDef> assignedPrimaries, List<WorkTypeDef> allWorkTypes)
+        private static void AssignSecondaryJobsComplete(Pawn pawn, WorkTypeDef primaryWork, Dictionary<Pawn, WorkTypeDef> assignedPrimaries, List<WorkTypeDef> allWorkTypes, Dictionary<WorkTypeDef, int> manualColonistJobs, int totalColonists, PriorityManagerSettings settings)
         {
             var gameComp = PriorityDataHelper.GetGameComponent();
             if (gameComp == null)
                 return;
 
-            var settings = PriorityManagerMod.settings;
             int colonySize = gameComp.GetAllColonists().Count;
 
             // Get current priorities already set
@@ -665,6 +931,17 @@ namespace PriorityManager
             if (primaryWork != null)
                 alreadySet.Add(primaryWork);
             alreadySet.Add(WorkTypeDefOf.Firefighter);
+
+            // Get work urgency for prioritization
+            Map map = pawn.Map;
+            Dictionary<WorkTypeDef, float> workUrgency = new Dictionary<WorkTypeDef, float>();
+            HashSet<WorkTypeDef> activeWorkTypes = new HashSet<WorkTypeDef>();
+            
+            if (map != null)
+            {
+                workUrgency = WorkScanner.ScoreWorkUrgency(map);
+                activeWorkTypes = WorkScanner.GetActiveWorkTypes(map);
+            }
 
             // Get all work types this colonist can do
             var workTypes = allWorkTypes
@@ -680,6 +957,18 @@ namespace PriorityManager
                 if (importance == JobImportance.Disabled)
                     continue;
 
+                // Check max workers limit before considering this job
+                int maxWorkers = settings.GetMaxWorkersForJob(workType, totalColonists);
+                if (maxWorkers > 0)
+                {
+                    int currentWorkers = CountCurrentWorkers(workType, gameComp.GetAllColonists());
+                    if (currentWorkers >= maxWorkers)
+                    {
+                        Log.Message($"PriorityManager: Skipping {workType.labelShort} for {pawn.Name.ToStringShort} in secondary assignment - max workers ({maxWorkers}) reached");
+                        continue; // Skip jobs that are at max capacity
+                    }
+                }
+
                 float score = CalculateWorkTypeScore(pawn, workType);
                 
                 // Apply importance modifiers
@@ -689,6 +978,18 @@ namespace PriorityManager
                 if (assignedPrimaries.ContainsValue(workType))
                 {
                     score *= 1.3f;
+                }
+                
+                // Boost jobs with active work
+                if (activeWorkTypes.Contains(workType))
+                {
+                    score *= 1.4f;
+                }
+                
+                // Add urgency bonus
+                if (workUrgency.TryGetValue(workType, out float urgency))
+                {
+                    score += urgency * 5f; // Smaller bonus for secondary jobs
                 }
                 
                 scores[workType] = score;
@@ -709,9 +1010,29 @@ namespace PriorityManager
                 if (pawn.workSettings.GetPriority(jobsToAssign[i].Key) > 0)
                     continue;
 
+                // Double-check max workers before assignment (in case it changed during iteration)
+                int maxWorkers = settings.GetMaxWorkersForJob(jobsToAssign[i].Key, totalColonists);
+                if (maxWorkers > 0)
+                {
+                    int currentWorkers = CountCurrentWorkers(jobsToAssign[i].Key, gameComp.GetAllColonists());
+                    if (currentWorkers >= maxWorkers)
+                        continue; // Skip if max reached
+                }
+
                 int priority = CalculatePriorityLevel(i, jobsToAssign.Count, settings.GetJobImportance(jobsToAssign[i].Key));
                 SetPriority(pawn, jobsToAssign[i].Key, priority);
             }
+        }
+        
+        private static int CountCurrentWorkers(WorkTypeDef workType, List<Pawn> allColonists)
+        {
+            int count = 0;
+            foreach (var colonist in allColonists)
+            {
+                if (colonist.workSettings != null && colonist.workSettings.GetPriority(workType) > 0)
+                    count++;
+            }
+            return count;
         }
 
         private static int CalculateMaxJobsForColonist(int colonySize, int totalAvailableJobs)
@@ -816,7 +1137,7 @@ namespace PriorityManager
             }
         }
 
-        private static float CalculateWorkTypeScore(Pawn pawn, WorkTypeDef workType)
+        public static float CalculateWorkTypeScore(Pawn pawn, WorkTypeDef workType)
         {
             float score = 0f;
             int skillCount = 0;

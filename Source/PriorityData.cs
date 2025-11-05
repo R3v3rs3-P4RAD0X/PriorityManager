@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
@@ -61,6 +62,9 @@ namespace PriorityManager
         public bool useCustomMapping = false;
         public Dictionary<int, int> customPriorityMapping = new Dictionary<int, int>(); // vanilla → PM priority
         public PriorityPreset priorityPreset = PriorityPreset.Balanced;
+        
+        // Custom roles
+        public List<CustomRole> customRoles = new List<CustomRole>();
 
         public override void ExposeData()
         {
@@ -78,6 +82,9 @@ namespace PriorityManager
             Scribe_Values.Look(ref useCustomMapping, "useCustomMapping", false);
             Scribe_Collections.Look(ref customPriorityMapping, "customPriorityMapping", LookMode.Value, LookMode.Value);
             Scribe_Values.Look(ref priorityPreset, "priorityPreset", PriorityPreset.Balanced);
+            
+            // Custom roles
+            Scribe_Collections.Look(ref customRoles, "customRoles", LookMode.Deep);
 
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
@@ -91,6 +98,8 @@ namespace PriorityManager
                     jobUsePercentage = new Dictionary<string, bool>();
                 if (customPriorityMapping == null)
                     customPriorityMapping = new Dictionary<int, int>();
+                if (customRoles == null)
+                    customRoles = new List<CustomRole>();
             }
         }
 
@@ -228,6 +237,56 @@ namespace PriorityManager
             }
             
             priorityPreset = preset;
+        }
+        
+        // Custom role management methods
+        
+        public CustomRole GetCustomRole(string roleId)
+        {
+            if (string.IsNullOrEmpty(roleId))
+                return null;
+            
+            return customRoles.FirstOrDefault(r => r.roleId == roleId);
+        }
+        
+        public void AddCustomRole(CustomRole role)
+        {
+            if (role == null || !role.IsValid())
+                return;
+            
+            // Ensure unique ID
+            if (customRoles.Any(r => r.roleId == role.roleId))
+            {
+                role.roleId = Guid.NewGuid().ToString();
+            }
+            
+            customRoles.Add(role);
+        }
+        
+        public void RemoveCustomRole(string roleId)
+        {
+            if (string.IsNullOrEmpty(roleId))
+                return;
+            
+            customRoles.RemoveAll(r => r.roleId == roleId);
+        }
+        
+        public void UpdateCustomRole(CustomRole role)
+        {
+            if (role == null || string.IsNullOrEmpty(role.roleId))
+                return;
+            
+            var existing = GetCustomRole(role.roleId);
+            if (existing != null)
+            {
+                customRoles.Remove(existing);
+                customRoles.Add(role);
+            }
+        }
+        
+        public List<CustomRole> GetAllCustomRoles()
+        {
+            return new List<CustomRole>(customRoles);
         }
     }
 

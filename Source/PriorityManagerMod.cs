@@ -1,5 +1,6 @@
 using HarmonyLib;
 using RimWorld;
+using System.Collections.Generic;
 using UnityEngine;
 using Verse;
 
@@ -10,6 +11,11 @@ namespace PriorityManager
         public static Harmony harmony;
         public static PriorityManagerSettings settings;
         public static PriorityManagerMod Instance;
+        
+        private int currentTab = 0;
+        private CustomRole selectedRole = null;
+        private Vector2 roleListScrollPos = Vector2.zero;
+        private Vector2 roleEditorScrollPos = Vector2.zero;
 
         public PriorityManagerMod(ModContentPack content) : base(content)
         {
@@ -37,11 +43,43 @@ namespace PriorityManager
         {
             base.DoSettingsWindowContents(inRect);
             
+            // Draw tabs
+            Rect tabRect = new Rect(inRect.x, inRect.y, inRect.width, 40f);
+            float tabWidth = inRect.width / 2f;
+            
+            Rect tab1Rect = new Rect(tabRect.x, tabRect.y, tabWidth, 32f);
+            Rect tab2Rect = new Rect(tabRect.x + tabWidth, tabRect.y, tabWidth, 32f);
+            
+            if (Widgets.ButtonText(tab1Rect, "Global Settings", currentTab == 0))
+            {
+                currentTab = 0;
+            }
+            
+            if (Widgets.ButtonText(tab2Rect, "Custom Roles", currentTab == 1))
+            {
+                currentTab = 1;
+            }
+            
+            // Content area
+            Rect contentRect = new Rect(inRect.x, inRect.y + 45f, inRect.width, inRect.height - 45f);
+            
+            if (currentTab == 0)
+            {
+                DrawGlobalSettings(contentRect);
+            }
+            else if (currentTab == 1)
+            {
+                DrawCustomRolesTab(contentRect);
+            }
+        }
+        
+        private void DrawGlobalSettings(Rect inRect)
+        {
             Listing_Standard listing = new Listing_Standard();
             listing.Begin(inRect);
 
             Text.Font = GameFont.Medium;
-            listing.Label("Priority Manager Settings");
+            listing.Label("Global Settings");
             Text.Font = GameFont.Small;
             listing.Gap();
 
@@ -78,6 +116,199 @@ namespace PriorityManager
             listing.Label("For more detailed colonist-specific settings, open the Priority Manager window from the Work tab or press 'N'.");
 
             listing.End();
+        }
+        
+        private void DrawCustomRolesTab(Rect inRect)
+        {
+            // Split into left panel (role list) and right panel (role editor)
+            float listWidth = inRect.width * 0.35f;
+            Rect listRect = new Rect(inRect.x, inRect.y, listWidth - 5f, inRect.height);
+            Rect editorRect = new Rect(inRect.x + listWidth + 5f, inRect.y, inRect.width - listWidth - 5f, inRect.height);
+            
+            DrawRoleList(listRect);
+            Widgets.DrawLineVertical(listRect.xMax + 2.5f, listRect.y, listRect.height);
+            DrawRoleEditor(editorRect);
+        }
+        
+        private void DrawRoleList(Rect inRect)
+        {
+            Text.Font = GameFont.Medium;
+            Widgets.Label(new Rect(inRect.x, inRect.y, inRect.width, 30f), "Custom Roles");
+            Text.Font = GameFont.Small;
+            
+            // Create new role button
+            Rect createButtonRect = new Rect(inRect.x, inRect.yMax - 35f, inRect.width, 30f);
+            if (Widgets.ButtonText(createButtonRect, "Create New Role"))
+            {
+                CustomRole newRole = new CustomRole("New Role");
+                settings.AddCustomRole(newRole);
+                selectedRole = newRole;
+                WriteSettings();
+            }
+            
+            // Scrollable list of roles
+            Rect listViewRect = new Rect(inRect.x, inRect.y + 35f, inRect.width, inRect.height - 75f);
+            Rect listContentRect = new Rect(0f, 0f, listViewRect.width - 20f, settings.customRoles.Count * 60f);
+            
+            Widgets.BeginScrollView(listViewRect, ref roleListScrollPos, listContentRect);
+            
+            float curY = 0f;
+            foreach (var role in settings.GetAllCustomRoles())
+            {
+                Rect roleRect = new Rect(0f, curY, listContentRect.width, 55f);
+                
+                if (selectedRole == role)
+                {
+                    Widgets.DrawHighlight(roleRect);
+                }
+                
+                if (Widgets.ButtonInvisible(roleRect))
+                {
+                    selectedRole = role;
+                }
+                
+                Rect nameRect = new Rect(roleRect.x + 5f, roleRect.y + 5f, roleRect.width - 10f, 25f);
+                Rect summaryRect = new Rect(roleRect.x + 5f, roleRect.y + 30f, roleRect.width - 10f, 20f);
+                
+                Text.Font = GameFont.Small;
+                Widgets.Label(nameRect, role.roleName);
+                Text.Font = GameFont.Tiny;
+                GUI.color = Color.gray;
+                Widgets.Label(summaryRect, role.GetSummary());
+                GUI.color = Color.white;
+                Text.Font = GameFont.Small;
+                
+                curY += 60f;
+            }
+            
+            Widgets.EndScrollView();
+        }
+        
+        private void DrawRoleEditor(Rect inRect)
+        {
+            if (selectedRole == null)
+            {
+                Text.Anchor = TextAnchor.MiddleCenter;
+                Widgets.Label(inRect, "Select a role to edit or create a new one");
+                Text.Anchor = TextAnchor.UpperLeft;
+                return;
+            }
+            
+            Text.Font = GameFont.Medium;
+            Widgets.Label(new Rect(inRect.x, inRect.y, inRect.width - 80f, 30f), "Role Editor");
+            Text.Font = GameFont.Small;
+            
+            // Delete role button
+            Rect deleteRect = new Rect(inRect.xMax - 75f, inRect.y, 70f, 25f);
+            GUI.color = new Color(1f, 0.3f, 0.3f);
+            if (Widgets.ButtonText(deleteRect, "Delete"))
+            {
+                if (selectedRole != null)
+                {
+                    settings.RemoveCustomRole(selectedRole.roleId);
+                    selectedRole = null;
+                    WriteSettings();
+                }
+            }
+            GUI.color = Color.white;
+            
+            if (selectedRole == null)
+                return;
+            
+            // Role name
+            Rect nameLabelRect = new Rect(inRect.x, inRect.y + 35f, 100f, 25f);
+            Rect nameInputRect = new Rect(inRect.x + 105f, inRect.y + 35f, inRect.width - 105f, 25f);
+            Widgets.Label(nameLabelRect, "Role Name:");
+            selectedRole.roleName = Widgets.TextField(nameInputRect, selectedRole.roleName);
+            
+            // Add job button
+            Rect addJobRect = new Rect(inRect.x, inRect.y + 70f, 120f, 30f);
+            if (Widgets.ButtonText(addJobRect, "Add Job"))
+            {
+                Find.WindowStack.Add(new JobSelectorDialog(selectedRole, () => WriteSettings()));
+            }
+            
+            // Save button
+            Rect saveRect = new Rect(inRect.xMax - 125f, inRect.y + 70f, 120f, 30f);
+            if (Widgets.ButtonText(saveRect, "Save Changes"))
+            {
+                settings.UpdateCustomRole(selectedRole);
+                WriteSettings();
+                Messages.Message($"Saved custom role: {selectedRole.roleName}", MessageTypeDefOf.TaskCompletion);
+            }
+            
+            // Job list
+            Rect jobListRect = new Rect(inRect.x, inRect.y + 110f, inRect.width, inRect.height - 115f);
+            DrawJobList(jobListRect);
+        }
+        
+        private void DrawJobList(Rect inRect)
+        {
+            if (selectedRole == null || selectedRole.jobs.Count == 0)
+            {
+                Text.Anchor = TextAnchor.MiddleCenter;
+                Widgets.Label(inRect, "No jobs assigned to this role. Click 'Add Job' to begin.");
+                Text.Anchor = TextAnchor.UpperLeft;
+                return;
+            }
+            
+            float rowHeight = 40f;
+            Rect contentRect = new Rect(0f, 0f, inRect.width - 20f, selectedRole.jobs.Count * rowHeight);
+            
+            Widgets.BeginScrollView(inRect, ref roleEditorScrollPos, contentRect);
+            
+            float curY = 0f;
+            var sortedJobs = selectedRole.GetSortedJobs();
+            
+            for (int i = 0; i < sortedJobs.Count; i++)
+            {
+                var job = sortedJobs[i];
+                var workType = job.GetWorkTypeDef();
+                
+                if (workType == null)
+                    continue;
+                
+                Rect rowRect = new Rect(0f, curY, contentRect.width, rowHeight - 2f);
+                
+                // Drag handle area (left side)
+                Rect dragRect = new Rect(rowRect.x, rowRect.y, 30f, rowHeight);
+                Widgets.DrawHighlightIfMouseover(dragRect);
+                Widgets.Label(new Rect(dragRect.x + 5f, dragRect.y + 10f, 20f, 20f), ":::");
+                
+                // Job name
+                Rect nameRect = new Rect(rowRect.x + 35f, rowRect.y + 5f, 200f, 30f);
+                Widgets.Label(nameRect, workType.labelShort);
+                
+                // Importance dropdown
+                Rect importanceRect = new Rect(rowRect.x + 245f, rowRect.y + 5f, 150f, 30f);
+                if (Widgets.ButtonText(importanceRect, job.importance.ToString()))
+                {
+                    List<FloatMenuOption> options = new List<FloatMenuOption>();
+                    foreach (JobImportance importance in System.Enum.GetValues(typeof(JobImportance)))
+                    {
+                        options.Add(new FloatMenuOption(importance.ToString(), () => {
+                            job.importance = importance;
+                            WriteSettings();
+                        }));
+                    }
+                    Find.WindowStack.Add(new FloatMenu(options));
+                }
+                
+                // Remove button
+                Rect removeRect = new Rect(rowRect.xMax - 30f, rowRect.y + 5f, 25f, 25f);
+                GUI.color = new Color(1f, 0.3f, 0.3f);
+                if (Widgets.ButtonText(removeRect, "X"))
+                {
+                    selectedRole.RemoveJob(job.workTypeDefName);
+                    WriteSettings();
+                }
+                GUI.color = Color.white;
+                
+                Widgets.DrawLineHorizontal(rowRect.x, curY + rowHeight - 1f, rowRect.width);
+                curY += rowHeight;
+            }
+            
+            Widgets.EndScrollView();
         }
 
         public override string SettingsCategory()

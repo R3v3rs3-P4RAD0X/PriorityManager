@@ -44,6 +44,7 @@ namespace PriorityManager
         Demolition,     // Deconstruction-focused: Deconstruct → Repair → Construct
         Medic,          // Medical-focused: Surgeon → Nurse → Doctor
         Industrialist,  // Production-focused: Machining → Fabrication → Smithing → Crafting
+        Custom,         // User-defined custom role
         Manual          // User manually controls all priorities
     }
 
@@ -54,6 +55,7 @@ namespace PriorityManager
         public bool autoAssignEnabled = true;
         public int lastRecalculationTick = 0;
         public bool wasIllLastCheck = false;     // Track illness state
+        public string customRoleId = null;       // ID of custom role when assignedRole == Custom
 
         public ColonistRoleData()
         {
@@ -66,6 +68,7 @@ namespace PriorityManager
             this.autoAssignEnabled = true;
             this.lastRecalculationTick = Find.TickManager.TicksGame;
             this.wasIllLastCheck = false;
+            this.customRoleId = null;
         }
 
         public void ExposeData()
@@ -75,6 +78,7 @@ namespace PriorityManager
             Scribe_Values.Look(ref autoAssignEnabled, "autoAssignEnabled", true);
             Scribe_Values.Look(ref lastRecalculationTick, "lastRecalculationTick", 0);
             Scribe_Values.Look(ref wasIllLastCheck, "wasIllLastCheck", false);
+            Scribe_Values.Look(ref customRoleId, "customRoleId", null);
         }
     }
 

@@ -104,40 +104,49 @@ namespace PriorityManager
             return false;
         }
 
-        private int idleCheckCounter = 0;
-        private const int IDLE_CHECK_INTERVAL = 2500; // Check every ~4 seconds
+        private int lastIdleCheckTick = 0;
+        private const int IDLE_CHECK_INTERVAL = 2500; // Check every 2500 ticks (~1 in-game hour)
 
         private void CheckIdleColonists()
         {
-            idleCheckCounter++;
-            if (idleCheckCounter < IDLE_CHECK_INTERVAL)
+            int currentTick = Find.TickManager.TicksGame;
+            if (currentTick - lastIdleCheckTick < IDLE_CHECK_INTERVAL)
                 return;
 
-            idleCheckCounter = 0;
+            lastIdleCheckTick = currentTick;
 
             var gameComp = PriorityDataHelper.GetGameComponent();
             if (gameComp == null)
                 return;
 
+            var settings = PriorityManagerMod.settings;
             var colonists = gameComp.GetAllManagedColonists();
+            
             foreach (var pawn in colonists)
             {
-                // Check if colonist is idle (not doing anything)
-                if (pawn.mindState != null && pawn.CurJob != null)
+                // Skip if pawn is invalid or has no job system
+                if (pawn.CurJob == null || pawn.mindState == null)
+                    continue;
+
+                // Check if colonist is idle
+                JobDef curJobDef = pawn.CurJob.def;
+                bool isIdle = curJobDef == JobDefOf.Wait_Wander || 
+                              curJobDef == JobDefOf.Wait_Combat ||
+                              curJobDef == JobDefOf.Wait_MaintainPosture ||
+                              curJobDef == JobDefOf.GotoWander ||
+                              curJobDef.defName.Contains("Idle");
+                
+                if (isIdle)
                 {
-                    // If they're wandering or idle, they might need more jobs
-                    string jobDefName = pawn.CurJob.def?.defName ?? "";
-                    if (jobDefName.Contains("Wait") || jobDefName.Contains("Wander") || jobDefName.Contains("Idle"))
+                    // Check how many jobs they have assigned
+                    int assignedJobCount = CountAssignedJobs(pawn);
+                    int totalJobs = DefDatabase<WorkTypeDef>.AllDefsListForReading.Count(wt => wt.visible);
+                    
+                    // If they have less than half the jobs available, give them more
+                    if (assignedJobCount < totalJobs * 0.5f)
                     {
-                        // Check how many jobs they have assigned
-                        int assignedJobCount = CountAssignedJobs(pawn);
-                        int totalJobs = DefDatabase<WorkTypeDef>.AllDefsListForReading.Count(wt => wt.visible);
-                        
-                        // If they have less than half the jobs available, give them more
-                        if (assignedJobCount < totalJobs * 0.5f)
-                        {
-                            ExpandIdleColonistJobs(pawn);
-                        }
+                        Log.Message($"PriorityManager: {pawn.Name.ToStringShort} detected idle with only {assignedJobCount}/{totalJobs} jobs assigned");
+                        ExpandIdleColonistJobs(pawn);
                     }
                 }
             }
@@ -161,6 +170,17 @@ namespace PriorityManager
         {
             var settings = PriorityManagerMod.settings;
             
+            // Get work urgency to prioritize jobs with active work
+            Map map = pawn.Map;
+            Dictionary<WorkTypeDef, float> workUrgency = new Dictionary<WorkTypeDef, float>();
+            HashSet<WorkTypeDef> activeWorkTypes = new HashSet<WorkTypeDef>();
+            
+            if (map != null)
+            {
+                workUrgency = WorkScanner.ScoreWorkUrgency(map);
+                activeWorkTypes = WorkScanner.GetActiveWorkTypes(map);
+            }
+            
             // Get all work types not currently assigned
             var unassignedJobs = DefDatabase<WorkTypeDef>.AllDefsListForReading
                 .Where(wt => wt.visible)
@@ -172,13 +192,34 @@ namespace PriorityManager
             if (unassignedJobs.Count == 0)
                 return;
 
-            // Assign top unassigned jobs at priority 4 (as backup/filler work)
-            foreach (var workType in unassignedJobs.Take(5))
+            // Score unassigned jobs and prioritize those with active work
+            var jobScores = new List<(WorkTypeDef workType, float score)>();
+            foreach (var workType in unassignedJobs)
+            {
+                float score = PriorityAssigner.CalculateWorkTypeScore(pawn, workType);
+                
+                // Boost jobs with active work significantly
+                if (activeWorkTypes.Contains(workType))
+                {
+                    score *= 3f; // Major boost for idle colonists to pick up active work
+                }
+                
+                if (workUrgency.TryGetValue(workType, out float urgency))
+                {
+                    score += urgency * 20f; // Large urgency bonus
+                }
+                
+                jobScores.Add((workType, score));
+            }
+
+            // Sort by score and assign top jobs at priority 4 (as backup/filler work)
+            var topJobs = jobScores.OrderByDescending(x => x.score).Take(5).ToList();
+            foreach (var (workType, score) in topJobs)
             {
                 pawn.workSettings.SetPriority(workType, 4);
             }
 
-            Log.Message($"PriorityManager: {pawn.Name.ToStringShort} was idle, assigned {Math.Min(5, unassignedJobs.Count)} additional jobs.");
+            Log.Message($"PriorityManager: {pawn.Name.ToStringShort} was idle, assigned {topJobs.Count} jobs (prioritizing active work)");
         }
     }
 

@@ -143,19 +143,68 @@ namespace PriorityManager
             Widgets.DrawLineHorizontal(0f, listing.CurHeight, inRect.width);
             listing.Gap();
 
-            // Current Assignment Info
-            listing.Label("Current Assignments:");
+            // Current Assignment Info with Target Preview
+            Text.Font = GameFont.Small;
+            listing.Label("Current Status:");
+            
             var gameComp = PriorityDataHelper.GetGameComponent();
             if (gameComp != null)
             {
                 var colonists = gameComp.GetAllColonists();
-                int workerCount = 0;
+                int totalColonists = colonists.Count;
+                int currentWorkers = 0;
                 foreach (var colonist in colonists)
                 {
                     if (colonist.workSettings != null && colonist.workSettings.GetPriority(workType) > 0)
-                        workerCount++;
+                        currentWorkers++;
                 }
-                listing.Label($"Currently assigned: {workerCount} colonist(s)");
+                
+                // Calculate target min/max based on current settings
+                int targetMin = tempMinWorkers;
+                int targetMax = tempMaxWorkers;
+                
+                if (tempUsePercentage && totalColonists > 0)
+                {
+                    targetMin = (int)System.Math.Ceiling(totalColonists * (tempMinWorkers / 100f));
+                    targetMax = tempMaxWorkers > 0 ? (int)System.Math.Ceiling(totalColonists * (tempMaxWorkers / 100f)) : 0;
+                }
+                
+                // Show current vs target
+                Rect statusRect = listing.GetRect(24f);
+                
+                // Determine status color
+                Color statusColor = Color.white;
+                string statusText = "";
+                
+                if (targetMin > 0 && currentWorkers < targetMin)
+                {
+                    statusColor = new Color(1f, 0.4f, 0.4f); // Red - below minimum
+                    statusText = " [BELOW MIN]";
+                }
+                else if (targetMax > 0 && currentWorkers > targetMax)
+                {
+                    statusColor = new Color(1f, 0.7f, 0.3f); // Orange - above maximum
+                    statusText = " [ABOVE MAX]";
+                }
+                else if (targetMin > 0 && currentWorkers >= targetMin)
+                {
+                    statusColor = new Color(0.4f, 1f, 0.4f); // Green - in range
+                    statusText = " [OK]";
+                }
+                
+                GUI.color = statusColor;
+                string minStr = targetMin > 0 ? targetMin.ToString() : "-";
+                string maxStr = targetMax > 0 ? targetMax.ToString() : "∞";
+                Widgets.Label(statusRect, $"Currently assigned: {currentWorkers} colonist(s){statusText}");
+                GUI.color = Color.white;
+                
+                Rect targetRect = listing.GetRect(20f);
+                string targetDisplay = $"Target range: {minStr} to {maxStr} colonists";
+                if (tempUsePercentage)
+                {
+                    targetDisplay = $"Target range: {tempMinWorkers}% to {(tempMaxWorkers > 0 ? tempMaxWorkers.ToString() + "%" : "∞")} ({minStr} to {maxStr} colonists)";
+                }
+                Widgets.Label(targetRect, targetDisplay);
             }
 
             listing.Gap();
@@ -169,11 +218,50 @@ namespace PriorityManager
 
             if (Widgets.ButtonText(saveButtonRect, "Save"))
             {
-                settings.SetJobImportance(workType, tempImportance);
-                settings.SetWorkerCounts(workType, tempMinWorkers, tempMaxWorkers, tempUsePercentage);
-                PriorityManagerMod.Instance.WriteSettings();
-                Messages.Message($"Settings saved for {workType.labelShort}", MessageTypeDefOf.TaskCompletion);
-                Close();
+                // Validate settings
+                bool hasError = false;
+                
+                // Check if min > max
+                if (tempMaxWorkers > 0 && tempMinWorkers > tempMaxWorkers)
+                {
+                    Messages.Message($"Error: Minimum workers ({tempMinWorkers}) cannot be greater than maximum workers ({tempMaxWorkers})", MessageTypeDefOf.RejectInput);
+                    hasError = true;
+                }
+                
+                // Check if settings are impossible given colony size
+                var gameCompValidation = PriorityDataHelper.GetGameComponent();
+                if (gameCompValidation != null && !tempUsePercentage)
+                {
+                    int totalColonists = gameCompValidation.GetAllColonists().Count;
+                    if (tempMinWorkers > totalColonists)
+                    {
+                        Messages.Message($"Warning: Minimum workers ({tempMinWorkers}) exceeds total colonists ({totalColonists})", MessageTypeDefOf.CautionInput);
+                    }
+                }
+                
+                // Check percentage range
+                if (tempUsePercentage)
+                {
+                    if (tempMinWorkers > 100)
+                    {
+                        Messages.Message($"Error: Minimum percentage cannot exceed 100%", MessageTypeDefOf.RejectInput);
+                        hasError = true;
+                    }
+                    if (tempMaxWorkers > 100)
+                    {
+                        Messages.Message($"Error: Maximum percentage cannot exceed 100%", MessageTypeDefOf.RejectInput);
+                        hasError = true;
+                    }
+                }
+                
+                if (!hasError)
+                {
+                    settings.SetJobImportance(workType, tempImportance);
+                    settings.SetWorkerCounts(workType, tempMinWorkers, tempMaxWorkers, tempUsePercentage);
+                    PriorityManagerMod.Instance.WriteSettings();
+                    Messages.Message($"Settings saved for {workType.labelShort}", MessageTypeDefOf.TaskCompletion);
+                    Close();
+                }
             }
 
             if (Widgets.ButtonText(cancelButtonRect, "Cancel"))
