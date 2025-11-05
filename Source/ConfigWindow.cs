@@ -257,7 +257,16 @@ namespace PriorityManager
             Widgets.Label(new Rect(170f, 0f, 120f, ROW_HEIGHT), bestSkillText);
 
             // Current role
-            string roleText = RolePresetUtility.GetRoleLabel(data.assignedRole);
+            string roleText;
+            if (data.assignedRole == RolePreset.Custom && !string.IsNullOrEmpty(data.customRoleId))
+            {
+                var customRole = PriorityManagerMod.settings.GetCustomRole(data.customRoleId);
+                roleText = customRole != null ? customRole.roleName : "Custom (Invalid)";
+            }
+            else
+            {
+                roleText = RolePresetUtility.GetRoleLabel(data.assignedRole);
+            }
             Widgets.Label(new Rect(300f, 0f, 130f, ROW_HEIGHT), roleText);
 
             // Auto-assign toggle
@@ -333,13 +342,18 @@ namespace PriorityManager
         {
             List<FloatMenuOption> options = new List<FloatMenuOption>();
 
+            // Add built-in presets (excluding Custom)
             foreach (var preset in RolePresetUtility.GetAllPresets())
             {
+                if (preset == RolePreset.Custom)
+                    continue; // Skip Custom - we'll handle custom roles separately
+                
                 string label = RolePresetUtility.GetRoleLabel(preset);
                 
                 options.Add(new FloatMenuOption(label, () =>
                 {
                     data.assignedRole = preset;
+                    data.customRoleId = null; // Clear custom role ID when switching to preset
                     data.autoAssignEnabled = (preset != RolePreset.Manual);
                     
                     if (preset != RolePreset.Manual)
@@ -348,6 +362,26 @@ namespace PriorityManager
                         Messages.Message($"{colonist.Name.ToStringShort} assigned to {label} role.", MessageTypeDefOf.TaskCompletion);
                     }
                 }));
+            }
+
+            // Add separator and custom roles
+            var customRoles = PriorityManagerMod.settings.GetAllCustomRoles();
+            if (customRoles.Count > 0)
+            {
+                options.Add(new FloatMenuOption("--- Custom Roles ---", null));
+                
+                foreach (var customRole in customRoles)
+                {
+                    options.Add(new FloatMenuOption(customRole.roleName, () =>
+                    {
+                        data.assignedRole = RolePreset.Custom;
+                        data.customRoleId = customRole.roleId;
+                        data.autoAssignEnabled = true;
+                        
+                        PriorityAssigner.AssignPriorities(colonist, true);
+                        Messages.Message($"{colonist.Name.ToStringShort} assigned to custom role: {customRole.roleName}.", MessageTypeDefOf.TaskCompletion);
+                    }));
+                }
             }
 
             Find.WindowStack.Add(new FloatMenu(options));
