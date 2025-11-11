@@ -86,12 +86,6 @@ namespace PriorityManager
                     // CheckIdleColonists(); // → IdleRedirector
                 }
             }
-            
-            // Update profiler (call once per frame from main map component)
-            if (map == Find.CurrentMap)
-            {
-                PerformanceProfiler.OnGUI();
-            }
         }
         
         private void UpdateWorkHistory()
@@ -398,7 +392,7 @@ namespace PriorityManager
         }
     }
 
-    // Patch to handle keybind
+    // Patch to handle keybind and performance overlay rendering
     [HarmonyPatch(typeof(UIRoot_Play), "UIRootOnGUI")]
     public static class UIRoot_Play_Patch
     {
@@ -408,6 +402,9 @@ namespace PriorityManager
         {
             if (Current.ProgramState != ProgramState.Playing)
                 return;
+
+            // Draw performance overlay (this is the proper place for GUI calls)
+            PerformanceProfiler.OnGUI();
 
             KeyBindingDef keyBinding = DefDatabase<KeyBindingDef>.GetNamedSilentFail("OpenPriorityManager");
             if (keyBinding != null && keyBinding.KeyDownEvent)
