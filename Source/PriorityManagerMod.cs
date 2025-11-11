@@ -111,7 +111,62 @@ namespace PriorityManager
             
             listing.CheckboxLabeled("Reduce workload for ill/injured colonists", ref settings.illnessResponseEnabled,
                 "When enabled, colonists with low health or serious injuries will have their work assignments reduced to essential self-care tasks.");
+            
+            listing.CheckboxLabeled("Enable solo survival mode", ref settings.enableSoloSurvivalMode,
+                "When enabled, a single colonist will use survival mode (all essential tasks enabled). Disable to use normal role-based assignment even with one colonist.");
 
+            listing.Gap();
+            listing.Gap();
+            
+            // Always Enabled Jobs Section
+            Text.Font = GameFont.Medium;
+            listing.Label("Always Enabled Jobs");
+            Text.Font = GameFont.Small;
+            listing.Gap();
+            
+            listing.Label("These jobs will be enabled at priority 1 for all colonists, regardless of their assigned role:");
+            listing.Gap();
+            
+            // Get critical work types
+            var criticalWorkTypes = new List<WorkTypeDef>();
+            if (WorkTypeDefOf.Firefighter != null)
+                criticalWorkTypes.Add(WorkTypeDefOf.Firefighter);
+            if (WorkTypeDefOf.Doctor != null)
+                criticalWorkTypes.Add(WorkTypeDefOf.Doctor);
+            
+            var patientWork = DefDatabase<WorkTypeDef>.GetNamedSilentFail("Patient");
+            if (patientWork != null)
+                criticalWorkTypes.Add(patientWork);
+            
+            var patientBedRestWork = DefDatabase<WorkTypeDef>.GetNamedSilentFail("PatientBedRest");
+            if (patientBedRestWork != null)
+                criticalWorkTypes.Add(patientBedRestWork);
+            
+            // Draw checkboxes for always-enabled jobs
+            foreach (var workType in criticalWorkTypes)
+            {
+                bool isEnabled = settings.IsJobAlwaysEnabled(workType);
+                bool newEnabled = isEnabled;
+                
+                listing.CheckboxLabeled(
+                    workType.labelShort ?? workType.defName,
+                    ref newEnabled,
+                    workType.description
+                );
+                
+                if (newEnabled != isEnabled)
+                {
+                    settings.SetJobAlwaysEnabled(workType, newEnabled);
+                }
+            }
+            
+            listing.Gap();
+            Text.Font = GameFont.Tiny;
+            GUI.color = new Color(0.7f, 0.7f, 0.7f);
+            listing.Label("Note: Always-enabled jobs will not count towards role-specific job assignments.");
+            GUI.color = Color.white;
+            Text.Font = GameFont.Small;
+            
             listing.Gap();
             listing.Label("For more detailed colonist-specific settings, open the Priority Manager window from the Work tab or press 'N'.");
 

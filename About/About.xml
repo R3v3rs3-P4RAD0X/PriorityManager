@@ -3,19 +3,23 @@
   <name>Priority Manager</name>
   <author>P4RAD0X</author>
   <packageId>p4rad0x.prioritymanager</packageId>
-  <modVersion>1.3.0</modVersion>
+  <modVersion>1.3.2</modVersion>
   <description>Automatically assigns work priorities to colonists based on their skills, user-defined roles, health status, and actual work needs. 
 
 Features:
 - Auto-assign priorities based on colonist skills
 - Optional role presets (Researcher, Doctor, Farmer, etc.) or fully automatic best-job detection
-- **NEW: Custom Roles** - create your own roles with drag-and-drop job ordering and importance levels (Disabled, VeryLow, Low, Normal, High, Critical)
-- **NEW: Tabbed Mod Settings** - Global settings and custom role editor accessible from mod options menu
+- **Custom Roles** - create your own roles with drag-and-drop job ordering and importance levels (Disabled, VeryLow, Low, Normal, High, Critical)
+- **NEW: Colony Efficiency Dashboard** - comprehensive performance metrics, job bottlenecks, staffing analysis, and efficiency scoring
+- **NEW: Real-Time Work Indicators** - color-coded workload levels next to each colonist with detailed tooltips
+- **NEW: Skill Coverage Matrix** - interactive grid showing colonist skills vs work types with passion indicators
+- **NEW: Pending Work Queue** - see what jobs need doing and who can do them
+- **Always-Enabled Jobs** - configure critical jobs (Firefighting, Doctor, Patient care) to be enabled for all colonists regardless of role
+- **Solo Survival Mode Toggle** - optional survival mode for single colonist scenarios
 - Intelligent secondary job assignment (priorities 2-4)
 - Need-based assignment - prioritizes jobs with active work (bills, construction, harvesting, etc.)
 - Improved idle detection - automatically assigns more jobs to idle colonists
 - Illness/injury response: reduces workload for sick colonists
-- Solo colonist survival mode: prioritizes essential tasks
 - Periodic auto-recalculation or manual control
 - Integrates directly into the Work tab
 - Min/Max worker controls per job type (absolute or percentage-based)

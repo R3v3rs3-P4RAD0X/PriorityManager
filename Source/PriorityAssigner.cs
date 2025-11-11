@@ -64,8 +64,9 @@ namespace PriorityManager
             // Check if this is a solo colonist scenario
             var allColonists = gameComp.GetAllColonists();
             bool isSoloColonist = allColonists.Count == 1;
+            var settings = PriorityManagerMod.settings;
 
-            if (isSoloColonist)
+            if (isSoloColonist && settings != null && settings.enableSoloSurvivalMode)
             {
                 AssignSurvivalPriorities(pawn);
             }
@@ -148,8 +149,8 @@ namespace PriorityManager
                 SetPriority(pawn, patientWork, 1);
             }
 
-            // Keep firefighter enabled (critical for survival)
-            SetPriority(pawn, WorkTypeDefOf.Firefighter, 1);
+            // Keep always-enabled jobs active
+            ApplyAlwaysEnabledJobs(pawn);
             
             // Allow self-tending if capable
             if (pawn.skills.GetSkill(SkillDefOf.Medicine)?.Level >= 3)
@@ -181,8 +182,8 @@ namespace PriorityManager
         {
             ClearAllPriorities(pawn);
 
-            // Always enable critical jobs at priority 1
-            SetPriority(pawn, WorkTypeDefOf.Firefighter, 1);
+            // Always enable jobs marked as "always enabled" in settings at priority 1
+            ApplyAlwaysEnabledJobs(pawn);
 
             // Check if this is a custom role
             if (data.assignedRole == RolePreset.Custom && !string.IsNullOrEmpty(data.customRoleId))
@@ -230,9 +231,9 @@ namespace PriorityManager
                 .Where(wt => wt.visible && CanDoWork(pawn, wt))
                 .ToList();
 
-            // Exclude critical jobs that are always priority 1
-            workTypes.RemoveAll(wt => 
-                wt == WorkTypeDefOf.Firefighter);
+            // Exclude always-enabled jobs (handled separately)
+            var settings = PriorityManagerMod.settings;
+            workTypes.RemoveAll(wt => settings != null && settings.IsJobAlwaysEnabled(wt));
 
             // Calculate scores for each work type
             var scores = new Dictionary<WorkTypeDef, float>();
@@ -331,7 +332,8 @@ namespace PriorityManager
             
             // Fill remaining slots with best available jobs at priority 4 (optional backup jobs)
             var availableWorkTypes = DefDatabase<WorkTypeDef>.AllDefsListForReading
-                .Where(wt => wt.visible && !assignedWorkTypes.Contains(wt) && CanDoWork(pawn, wt) && wt != WorkTypeDefOf.Firefighter)
+                .Where(wt => wt.visible && !assignedWorkTypes.Contains(wt) && CanDoWork(pawn, wt) && 
+                       (settings == null || !settings.IsJobAlwaysEnabled(wt)))
                 .ToList();
 
             if (availableWorkTypes.Count > 0)
@@ -426,8 +428,10 @@ namespace PriorityManager
 
             // Fill remaining slots with best available jobs at priority 4
             var assignedWorkTypes = new HashSet<WorkTypeDef>(compositeJobs.Select(j => j.workType));
+            var settings = PriorityManagerMod.settings;
             var availableWorkTypes = DefDatabase<WorkTypeDef>.AllDefsListForReading
-                .Where(wt => wt.visible && !assignedWorkTypes.Contains(wt) && CanDoWork(pawn, wt) && wt != WorkTypeDefOf.Firefighter)
+                .Where(wt => wt.visible && !assignedWorkTypes.Contains(wt) && CanDoWork(pawn, wt) && 
+                       (settings == null || !settings.IsJobAlwaysEnabled(wt)))
                 .ToList();
 
             var scores = new Dictionary<WorkTypeDef, float>();
@@ -495,17 +499,17 @@ namespace PriorityManager
                 }
             }
 
-            // Clear all priorities first
+            // Clear all priorities first and apply always-enabled jobs
             foreach (var pawn in managedColonists)
             {
                 ClearAllPriorities(pawn);
-                // Always set firefighter to priority 1
-                SetPriority(pawn, WorkTypeDefOf.Firefighter, 1);
+                // Apply always-enabled jobs for all colonists
+                ApplyAlwaysEnabledJobs(pawn);
             }
 
-            // Get all work types that need coverage
+            // Get all work types that need coverage (excluding always-enabled jobs)
             var allWorkTypes = DefDatabase<WorkTypeDef>.AllDefsListForReading
-                .Where(wt => wt.visible && wt != WorkTypeDefOf.Firefighter)
+                .Where(wt => wt.visible && !settings.IsJobAlwaysEnabled(wt))
                 .ToList();
 
             // Build skill matrix: for each work type, rank colonists by skill
@@ -890,10 +894,11 @@ namespace PriorityManager
         private static void AssignSecondaryJobsIndividual(Pawn pawn, WorkTypeDef primaryWork)
         {
             // Individual mode - just assign based on skills
+            var settings = PriorityManagerMod.settings;
             var workTypes = DefDatabase<WorkTypeDef>.AllDefsListForReading
                 .Where(wt => wt.visible && CanDoWork(pawn, wt))
                 .Where(wt => wt != primaryWork)
-                .Where(wt => wt != WorkTypeDefOf.Firefighter)
+                .Where(wt => settings == null || !settings.IsJobAlwaysEnabled(wt))
                 .ToList();
 
             var scores = new Dictionary<WorkTypeDef, float>();
@@ -930,7 +935,16 @@ namespace PriorityManager
             var alreadySet = new HashSet<WorkTypeDef>();
             if (primaryWork != null)
                 alreadySet.Add(primaryWork);
-            alreadySet.Add(WorkTypeDefOf.Firefighter);
+            
+            // Add always-enabled jobs to already set
+            if (settings != null)
+            {
+                foreach (var workType in DefDatabase<WorkTypeDef>.AllDefsListForReading)
+                {
+                    if (settings.IsJobAlwaysEnabled(workType))
+                        alreadySet.Add(workType);
+                }
+            }
 
             // Get work urgency for prioritization
             Map map = pawn.Map;
@@ -1099,10 +1113,11 @@ namespace PriorityManager
         private static void AssignSecondaryJobs(Pawn pawn, WorkTypeDef primaryWork, Dictionary<Pawn, WorkTypeDef> assignedPrimaries)
         {
             // Legacy method - kept for compatibility
+            var settings = PriorityManagerMod.settings;
             var workTypes = DefDatabase<WorkTypeDef>.AllDefsListForReading
                 .Where(wt => wt.visible && CanDoWork(pawn, wt))
                 .Where(wt => wt != primaryWork)
-                .Where(wt => wt != WorkTypeDefOf.Firefighter)
+                .Where(wt => settings == null || !settings.IsJobAlwaysEnabled(wt))
                 .ToList();
 
             var scores = new Dictionary<WorkTypeDef, float>();
@@ -1233,6 +1248,22 @@ namespace PriorityManager
                         pawn.workSettings.SetPriority(workType, 0);
                     }
                     catch { }
+                }
+            }
+        }
+        
+        private static void ApplyAlwaysEnabledJobs(Pawn pawn)
+        {
+            var settings = PriorityManagerMod.settings;
+            if (settings == null)
+                return;
+            
+            // Get all work types and check if they should always be enabled
+            foreach (var workType in DefDatabase<WorkTypeDef>.AllDefsListForReading)
+            {
+                if (workType.visible && settings.IsJobAlwaysEnabled(workType) && CanDoWork(pawn, workType))
+                {
+                    SetPriority(pawn, workType, 1);
                 }
             }
         }

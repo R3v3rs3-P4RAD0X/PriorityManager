@@ -52,6 +52,7 @@ namespace PriorityManager
         public int autoRecalculateIntervalHours = 12;  // Hours between auto-recalculations
         public bool globalAutoAssignEnabled = true;
         public bool illnessResponseEnabled = true;
+        public bool enableSoloSurvivalMode = true;
         public Dictionary<string, JobImportance> jobImportanceSettings = new Dictionary<string, JobImportance>();
         public Dictionary<string, int> jobMinWorkers = new Dictionary<string, int>();
         public Dictionary<string, int> jobMaxWorkers = new Dictionary<string, int>();
@@ -65,6 +66,9 @@ namespace PriorityManager
         
         // Custom roles
         public List<CustomRole> customRoles = new List<CustomRole>();
+        
+        // Always enabled jobs - jobs that should be enabled for all colonists regardless of role
+        public HashSet<string> alwaysEnabledJobs = new HashSet<string>();
 
         public override void ExposeData()
         {
@@ -72,6 +76,7 @@ namespace PriorityManager
             Scribe_Values.Look(ref autoRecalculateIntervalHours, "autoRecalculateIntervalHours", 12);
             Scribe_Values.Look(ref globalAutoAssignEnabled, "globalAutoAssignEnabled", true);
             Scribe_Values.Look(ref illnessResponseEnabled, "illnessResponseEnabled", true);
+            Scribe_Values.Look(ref enableSoloSurvivalMode, "enableSoloSurvivalMode", true);
             Scribe_Collections.Look(ref jobImportanceSettings, "jobImportanceSettings", LookMode.Value, LookMode.Value);
             Scribe_Collections.Look(ref jobMinWorkers, "jobMinWorkers", LookMode.Value, LookMode.Value);
             Scribe_Collections.Look(ref jobMaxWorkers, "jobMaxWorkers", LookMode.Value, LookMode.Value);
@@ -85,6 +90,9 @@ namespace PriorityManager
             
             // Custom roles
             Scribe_Collections.Look(ref customRoles, "customRoles", LookMode.Deep);
+            
+            // Always enabled jobs
+            Scribe_Collections.Look(ref alwaysEnabledJobs, "alwaysEnabledJobs", LookMode.Value);
 
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
@@ -100,7 +108,41 @@ namespace PriorityManager
                     customPriorityMapping = new Dictionary<int, int>();
                 if (customRoles == null)
                     customRoles = new List<CustomRole>();
+                if (alwaysEnabledJobs == null)
+                    alwaysEnabledJobs = new HashSet<string>();
+                    
+                // Set defaults for always enabled jobs if not already set
+                InitializeAlwaysEnabledDefaults();
             }
+        }
+        
+        private void InitializeAlwaysEnabledDefaults()
+        {
+            // Only initialize if the set is empty (first time loading or new game)
+            if (alwaysEnabledJobs.Count == 0)
+            {
+                // Critical jobs that should always be enabled
+                alwaysEnabledJobs.Add("Firefighter");
+                alwaysEnabledJobs.Add("Doctor");
+                alwaysEnabledJobs.Add("Patient");
+                alwaysEnabledJobs.Add("PatientBedRest");
+            }
+        }
+        
+        public bool IsJobAlwaysEnabled(WorkTypeDef workType)
+        {
+            return workType != null && alwaysEnabledJobs.Contains(workType.defName);
+        }
+        
+        public void SetJobAlwaysEnabled(WorkTypeDef workType, bool enabled)
+        {
+            if (workType == null)
+                return;
+                
+            if (enabled)
+                alwaysEnabledJobs.Add(workType.defName);
+            else
+                alwaysEnabledJobs.Remove(workType.defName);
         }
 
         public JobImportance GetJobImportance(WorkTypeDef workType)
@@ -294,9 +336,11 @@ namespace PriorityManager
     {
         private Dictionary<string, ColonistRoleData> colonistData = new Dictionary<string, ColonistRoleData>();
         private int lastGlobalRecalculationTick = 0;
+        private WorkHistoryTracker workHistoryTracker;
 
         public PriorityManagerGameComponent(Game game)
         {
+            workHistoryTracker = new WorkHistoryTracker();
         }
 
         public override void ExposeData()
@@ -304,6 +348,7 @@ namespace PriorityManager
             base.ExposeData();
             Scribe_Collections.Look(ref colonistData, "colonistData", LookMode.Value, LookMode.Deep);
             Scribe_Values.Look(ref lastGlobalRecalculationTick, "lastGlobalRecalculationTick", 0);
+            Scribe_Deep.Look(ref workHistoryTracker, "workHistoryTracker");
 
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
@@ -311,7 +356,16 @@ namespace PriorityManager
                 {
                     colonistData = new Dictionary<string, ColonistRoleData>();
                 }
+                if (workHistoryTracker == null)
+                {
+                    workHistoryTracker = new WorkHistoryTracker();
+                }
             }
+        }
+        
+        public WorkHistoryTracker GetWorkHistoryTracker()
+        {
+            return workHistoryTracker;
         }
 
         public ColonistRoleData GetOrCreateData(Pawn pawn)

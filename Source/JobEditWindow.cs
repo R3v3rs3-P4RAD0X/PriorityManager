@@ -15,7 +15,7 @@ namespace PriorityManager
         private int tempMinWorkers;
         private bool tempUsePercentage;
 
-        public override Vector2 InitialSize => new Vector2(650f, 550f);
+        public override Vector2 InitialSize => new Vector2(650f, 650f);
 
         public JobEditWindow(WorkTypeDef workType)
         {
@@ -25,8 +25,9 @@ namespace PriorityManager
             doCloseButton = true;
             doCloseX = true;
             draggable = true;
-            resizeable = false;
+            resizeable = true;
             absorbInputAroundWindow = true;
+            optionalTitle = $"Edit Job Settings: {workType.labelShort ?? workType.defName}";
 
             // Load current settings (raw values, not calculated)
             tempImportance = settings.GetJobImportance(workType);
@@ -42,12 +43,6 @@ namespace PriorityManager
 
             Listing_Standard listing = new Listing_Standard();
             listing.Begin(inRect);
-
-            // Title
-            Text.Font = GameFont.Medium;
-            listing.Label($"Edit Job: {workType.labelShort ?? workType.defName}");
-            Text.Font = GameFont.Small;
-            listing.Gap();
 
             // Description
             if (!string.IsNullOrEmpty(workType.description))

@@ -30,6 +30,27 @@ namespace PriorityManager
                 CheckAndRecalculate();
                 CheckHealthChanges();
                 CheckIdleColonists();
+                UpdateWorkHistory();
+            }
+        }
+        
+        private void UpdateWorkHistory()
+        {
+            var gameComp = PriorityDataHelper.GetGameComponent();
+            if (gameComp == null)
+                return;
+
+            var tracker = gameComp.GetWorkHistoryTracker();
+            if (tracker != null)
+            {
+                int currentTick = Find.TickManager.TicksGame;
+                tracker.Update(currentTick);
+                
+                // Periodically clean old data (once per day)
+                if (currentTick % GenDate.TicksPerDay == 0)
+                {
+                    tracker.ClearOldData();
+                }
             }
         }
 
