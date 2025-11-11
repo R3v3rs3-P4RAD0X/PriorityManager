@@ -3,11 +3,12 @@
   <name>Priority Manager v2</name>
   <author>P4RAD0X</author>
   <packageId>p4rad0x.prioritymanager.v2</packageId>
-  <modVersion>2.0.0-alpha</modVersion>
-  <description>⚠️ V2.0 ALPHA - NOT COMPATIBLE WITH V1.X SAVES ⚠️
+  <modVersion>2.0.0-alpha1</modVersion>
+  <description>⚠️ V2.0 ALPHA 1 - NOT COMPATIBLE WITH V1.X SAVES ⚠️
 ⚠️ SEPARATE MOD - Can be installed alongside Priority Manager v1.x ⚠️
 
 Complete architectural rewrite focused on performance for large colonies (100+ colonists).
+Alpha 1: Core systems complete (Phases 0-4). UI and polish coming in future alphas.
 
 This is a separate mod that can coexist with Priority Manager v1.x. Disable v1.x when using v2.0.
 
