@@ -43,14 +43,21 @@ namespace PriorityManager
                 // v2.0: Ensure cache initialized
                 EnsureCacheInitialized();
 
+                // v2.0: Process event queue (event-driven updates)
+                Events.EventDispatcher.Instance.ProcessEvents();
+                Events.IncrementalUpdater.Instance.ProcessDirtyColonists();
+
                 tickCounter++;
                 if (tickCounter >= CHECK_INTERVAL)
                 {
                     tickCounter = 0;
-                    CheckAndRecalculate();
-                    CheckHealthChanges();
-                    CheckIdleColonists();
-                    UpdateWorkHistory();
+                    // v2.0: Reduced polling - only periodic checks now
+                    CheckAndRecalculate(); // Scheduled recalculations
+                    CheckIdleColonists();  // Idle detection (will be event-based in Phase 3)
+                    UpdateWorkHistory();   // History tracking
+                    
+                    // Health changes now handled by events (HealthChangedEvent)
+                    // CheckHealthChanges(); // REMOVED - replaced with event
                 }
             }
             
