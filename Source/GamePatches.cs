@@ -21,16 +21,25 @@ namespace PriorityManager
 
         public override void MapComponentTick()
         {
-            base.MapComponentTick();
-
-            tickCounter++;
-            if (tickCounter >= CHECK_INTERVAL)
+            using (PerformanceProfiler.Profile("MapComponentTick"))
             {
-                tickCounter = 0;
-                CheckAndRecalculate();
-                CheckHealthChanges();
-                CheckIdleColonists();
-                UpdateWorkHistory();
+                base.MapComponentTick();
+
+                tickCounter++;
+                if (tickCounter >= CHECK_INTERVAL)
+                {
+                    tickCounter = 0;
+                    CheckAndRecalculate();
+                    CheckHealthChanges();
+                    CheckIdleColonists();
+                    UpdateWorkHistory();
+                }
+            }
+            
+            // Update profiler (call once per frame from main map component)
+            if (map == Find.CurrentMap)
+            {
+                PerformanceProfiler.OnGUI();
             }
         }
         
@@ -56,47 +65,53 @@ namespace PriorityManager
 
         private void CheckAndRecalculate()
         {
-            var settings = PriorityManagerMod.settings;
-            if (!settings.globalAutoAssignEnabled || settings.autoRecalculateIntervalHours <= 0)
-                return;
-
-            var gameComp = PriorityDataHelper.GetGameComponent();
-            if (gameComp == null)
-                return;
-
-            int currentTick = Find.TickManager.TicksGame;
-            int lastTick = gameComp.GetLastGlobalRecalculationTick();
-            int intervalTicks = settings.autoRecalculateIntervalHours * 2500; // 2500 ticks per hour
-
-            if (currentTick - lastTick >= intervalTicks)
+            using (PerformanceProfiler.Profile("CheckAndRecalculate"))
             {
-                PriorityAssigner.AssignAllColonistPriorities(false);
+                var settings = PriorityManagerMod.settings;
+                if (!settings.globalAutoAssignEnabled || settings.autoRecalculateIntervalHours <= 0)
+                    return;
+
+                var gameComp = PriorityDataHelper.GetGameComponent();
+                if (gameComp == null)
+                    return;
+
+                int currentTick = Find.TickManager.TicksGame;
+                int lastTick = gameComp.GetLastGlobalRecalculationTick();
+                int intervalTicks = settings.autoRecalculateIntervalHours * 2500; // 2500 ticks per hour
+
+                if (currentTick - lastTick >= intervalTicks)
+                {
+                    PriorityAssigner.AssignAllColonistPriorities(false);
+                }
             }
         }
 
         private void CheckHealthChanges()
         {
-            var settings = PriorityManagerMod.settings;
-            if (!settings.illnessResponseEnabled)
-                return;
-
-            var gameComp = PriorityDataHelper.GetGameComponent();
-            if (gameComp == null)
-                return;
-
-            var colonists = gameComp.GetAllManagedColonists();
-            foreach (var pawn in colonists)
+            using (PerformanceProfiler.Profile("CheckHealthChanges"))
             {
-                var data = gameComp.GetData(pawn);
-                if (data == null)
-                    continue;
+                var settings = PriorityManagerMod.settings;
+                if (!settings.illnessResponseEnabled)
+                    return;
 
-                bool isCurrentlyIll = IsColonistIll(pawn);
-                
-                // State changed - trigger recalculation
-                if (isCurrentlyIll != data.wasIllLastCheck)
+                var gameComp = PriorityDataHelper.GetGameComponent();
+                if (gameComp == null)
+                    return;
+
+                var colonists = gameComp.GetAllManagedColonists();
+                foreach (var pawn in colonists)
                 {
-                    PriorityAssigner.AssignPriorities(pawn, false);
+                    var data = gameComp.GetData(pawn);
+                    if (data == null)
+                        continue;
+
+                    bool isCurrentlyIll = IsColonistIll(pawn);
+                    
+                    // State changed - trigger recalculation
+                    if (isCurrentlyIll != data.wasIllLastCheck)
+                    {
+                        PriorityAssigner.AssignPriorities(pawn, false);
+                    }
                 }
             }
         }
@@ -130,11 +145,13 @@ namespace PriorityManager
 
         private void CheckIdleColonists()
         {
-            int currentTick = Find.TickManager.TicksGame;
-            if (currentTick - lastIdleCheckTick < IDLE_CHECK_INTERVAL)
-                return;
+            using (PerformanceProfiler.Profile("CheckIdleColonists"))
+            {
+                int currentTick = Find.TickManager.TicksGame;
+                if (currentTick - lastIdleCheckTick < IDLE_CHECK_INTERVAL)
+                    return;
 
-            lastIdleCheckTick = currentTick;
+                lastIdleCheckTick = currentTick;
 
             var gameComp = PriorityDataHelper.GetGameComponent();
             if (gameComp == null)
@@ -170,6 +187,7 @@ namespace PriorityManager
                         ExpandIdleColonistJobs(pawn);
                     }
                 }
+            }
             }
         }
 

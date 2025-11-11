@@ -53,6 +53,7 @@ namespace PriorityManager
         public bool globalAutoAssignEnabled = true;
         public bool illnessResponseEnabled = true;
         public bool enableSoloSurvivalMode = true;
+        public bool showPerformanceOverlay = false;  // v2.0: Show performance profiler overlay
         public Dictionary<string, JobImportance> jobImportanceSettings = new Dictionary<string, JobImportance>();
         public Dictionary<string, int> jobMinWorkers = new Dictionary<string, int>();
         public Dictionary<string, int> jobMaxWorkers = new Dictionary<string, int>();
@@ -77,6 +78,7 @@ namespace PriorityManager
             Scribe_Values.Look(ref globalAutoAssignEnabled, "globalAutoAssignEnabled", true);
             Scribe_Values.Look(ref illnessResponseEnabled, "illnessResponseEnabled", true);
             Scribe_Values.Look(ref enableSoloSurvivalMode, "enableSoloSurvivalMode", true);
+            Scribe_Values.Look(ref showPerformanceOverlay, "showPerformanceOverlay", false);
             Scribe_Collections.Look(ref jobImportanceSettings, "jobImportanceSettings", LookMode.Value, LookMode.Value);
             Scribe_Collections.Look(ref jobMinWorkers, "jobMinWorkers", LookMode.Value, LookMode.Value);
             Scribe_Collections.Look(ref jobMaxWorkers, "jobMaxWorkers", LookMode.Value, LookMode.Value);

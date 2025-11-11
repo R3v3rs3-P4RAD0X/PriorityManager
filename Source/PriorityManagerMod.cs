@@ -31,7 +31,7 @@ namespace PriorityManager
                 harmony = new Harmony("P4RAD0X.PriorityManager");
                 harmony.PatchAll();
                 
-                Log.Message("Priority Manager loaded successfully. Press 'N' or open the Work tab to access Priority Manager settings.");
+                Log.Message("Priority Manager v2.0 loaded successfully. Press 'N' or open the Work tab to access Priority Manager settings.");
             }
             catch (System.Exception ex)
             {
@@ -114,6 +114,12 @@ namespace PriorityManager
             
             listing.CheckboxLabeled("Enable solo survival mode", ref settings.enableSoloSurvivalMode,
                 "When enabled, a single colonist will use survival mode (all essential tasks enabled). Disable to use normal role-based assignment even with one colonist.");
+            
+            if (Prefs.DevMode)
+            {
+                listing.CheckboxLabeled("[Dev] Show performance overlay", ref settings.showPerformanceOverlay,
+                    "v2.0: Shows real-time performance profiler overlay with method timing breakdowns. Only visible in dev mode.");
+            }
 
             listing.Gap();
             listing.Gap();
