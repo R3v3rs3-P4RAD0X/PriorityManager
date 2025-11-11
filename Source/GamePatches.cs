@@ -73,6 +73,10 @@ namespace PriorityManager
                     Cache.PredictiveCache.Instance.RecordPattern();
                     Cache.PredictiveCache.Instance.UpdatePredictions();
                     
+                    // v2.0: Phase 6 systems
+                    Scheduling.ShiftScheduler.Instance.ApplyTimeBasedAdjustments();
+                    Analytics.PerformanceMonitor.Instance.Update();
+                    
                     // v2.0: Reduced polling - only periodic checks now
                     CheckAndRecalculate(); // Scheduled recalculations
                     UpdateWorkHistory();   // History tracking

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
@@ -12,7 +13,8 @@ namespace PriorityManager
         Dashboard,
         Colonists,
         JobSettings,
-        PriorityMaster
+        PriorityMaster,
+        Analytics  // v2.0: Phase 6 - Performance analytics
     }
 
     public class ConfigWindow : Window
@@ -98,6 +100,10 @@ namespace PriorityManager
             {
                 DrawPriorityMasterTab(contentRect);
             }
+            else if (currentTab == ConfigTab.Analytics)
+            {
+                DrawAnalyticsTab(contentRect);
+            }
 
             // Bottom buttons
             Rect bottomRect = new Rect(0f, inRect.height - 40f, inRect.width, 35f);
@@ -131,6 +137,15 @@ namespace PriorityManager
             {
                 currentTab = ConfigTab.PriorityMaster;
             }, currentTab == ConfigTab.PriorityMaster));
+            
+            // v2.0: Analytics tab (dev mode only)
+            if (Prefs.DevMode)
+            {
+                tabs.Add(new TabRecord("Analytics", delegate
+                {
+                    currentTab = ConfigTab.Analytics;
+                }, currentTab == ConfigTab.Analytics));
+            }
 
             TabDrawer.DrawTabs(rect, tabs);
         }
@@ -1446,6 +1461,116 @@ namespace PriorityManager
             return curY;
         }
 
+        /// <summary>
+        /// v2.0: Draw analytics tab with performance monitoring and ML stats
+        /// </summary>
+        private void DrawAnalyticsTab(Rect rect)
+        {
+            using (PerformanceProfiler.Profile("ConfigWindow.DrawAnalyticsTab"))
+            {
+                Listing_Standard listing = new Listing_Standard();
+                listing.Begin(rect);
+                
+                Text.Font = GameFont.Medium;
+                listing.Label("Performance Analytics & Diagnostics");
+                Text.Font = GameFont.Small;
+                listing.Gap();
+                
+                // Performance Monitor Section
+                Text.Font = GameFont.Small;
+                listing.Label("═══ Performance Monitor ═══");
+                listing.Gap();
+                
+                var monitor = Analytics.PerformanceMonitor.Instance;
+                Rect monitorRect = new Rect(0f, listing.CurHeight, rect.width - 30f, 400f);
+                monitor.DrawDashboard(monitorRect);
+                listing.Gap(410f);
+                
+                // ML Predictor Section
+                listing.Label("═══ ML Assignment Predictor ═══");
+                listing.Gap();
+                
+                var predictor = ML.AssignmentPredictor.Instance;
+                listing.Label(predictor.GetStatistics());
+                listing.Gap();
+                
+                if (listing.ButtonText("Export Training Data"))
+                {
+                    string path = System.IO.Path.Combine(GenFilePaths.ConfigFolderPath, 
+                        $"PriorityManager_ML_Training_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
+                    predictor.ExportTrainingData(path);
+                }
+                
+                listing.Gap();
+                
+                // Shift Scheduler Section
+                listing.Label("═══ Shift Scheduler ═══");
+                listing.Gap();
+                
+                var scheduler = Scheduling.ShiftScheduler.Instance;
+                listing.Label(scheduler.GetStatistics());
+                listing.Gap();
+                
+                // Emergency Mode Controls
+                Text.Font = GameFont.Small;
+                listing.Label("Emergency Mode Controls:");
+                
+                if (listing.ButtonText("🔥 Activate Fire Emergency"))
+                {
+                    scheduler.ActivateEmergencyMode(Scheduling.ShiftScheduler.EmergencyType.Fire);
+                }
+                
+                if (listing.ButtonText("⚔ Activate Raid Emergency"))
+                {
+                    scheduler.ActivateEmergencyMode(Scheduling.ShiftScheduler.EmergencyType.Raid);
+                }
+                
+                if (listing.ButtonText("🏥 Activate Epidemic Emergency"))
+                {
+                    scheduler.ActivateEmergencyMode(Scheduling.ShiftScheduler.EmergencyType.Epidemic);
+                }
+                
+                if (listing.ButtonText("🌾 Activate Famine Emergency"))
+                {
+                    scheduler.ActivateEmergencyMode(Scheduling.ShiftScheduler.EmergencyType.Famine);
+                }
+                
+                if (listing.ButtonText("✅ Deactivate Emergency Mode"))
+                {
+                    scheduler.DeactivateEmergencyMode();
+                }
+                
+                listing.Gap();
+                listing.Gap();
+                
+                // System Statistics
+                listing.Label("═══ System Statistics ═══");
+                listing.Gap();
+                
+                listing.Label($"Event Dispatcher: {Events.EventDispatcher.Instance.GetStatistics()}");
+                listing.Label($"Incremental Updater: {Events.IncrementalUpdater.Instance.GetStatistics()}");
+                listing.Label($"Idle Redirector: {Assignment.IdleRedirector.GetStatistics()}");
+                listing.Label($"Parallel Assigner: {Assignment.ParallelAssigner.GetStatistics()}");
+                listing.Label($"Smart Assigner: {Assignment.SmartAssigner.GetStatistics()}");
+                listing.Label($"Predictive Cache: {Cache.PredictiveCache.Instance.GetStatistics()}");
+                
+                if (Find.CurrentMap != null)
+                {
+                    var mapComp = Find.CurrentMap.GetComponent<PriorityManagerMapComponent>();
+                    if (mapComp != null)
+                    {
+                        var workZoneGrid = mapComp.GetWorkZoneGrid();
+                        if (workZoneGrid != null)
+                        {
+                            listing.Label($"Work Zone Grid: {workZoneGrid.GetStatistics()}");
+                        }
+                    }
+                }
+                
+                listing.End();
+            }
+        }
+        
         public override void PreClose()
         {
             base.PreClose();
