@@ -95,9 +95,14 @@ namespace PriorityManager
                 if (colonists == null || colonists.Count == 0)
                     return;
                 
-                // Use colony-wide distribution for multiple colonists
-                if (colonists.Count > 1)
+                // v2.0: Use parallel processing for large colonies
+                if (colonists.Count >= 50)
                 {
+                    Assignment.ParallelAssigner.AssignMultiple(colonists, force);
+                }
+                else if (colonists.Count > 1)
+                {
+                    // Use colony-wide distribution for small/medium colonies
                     AssignColonyWidePriorities(colonists, force);
                 }
                 else

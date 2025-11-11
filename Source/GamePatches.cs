@@ -64,13 +64,22 @@ namespace PriorityManager
                     // v2.0: Update spatial work grid
                     workZoneGrid?.Update();
                     
+                    // v2.0: Coverage guarantee + demand-based scaling
+                    var colonists = gameComp.GetAllColonists();
+                    Assignment.CoverageGuarantee.EnsureCoverage(colonists, workZoneGrid);
+                    Assignment.IdleRedirector.MonitorAndRedirect(colonists, workZoneGrid);
+                    
+                    // v2.0: Predictive caching
+                    Cache.PredictiveCache.Instance.RecordPattern();
+                    Cache.PredictiveCache.Instance.UpdatePredictions();
+                    
                     // v2.0: Reduced polling - only periodic checks now
                     CheckAndRecalculate(); // Scheduled recalculations
-                    CheckIdleColonists();  // Idle detection (will be event-based in Phase 3)
                     UpdateWorkHistory();   // History tracking
                     
-                    // Health changes now handled by events (HealthChangedEvent)
-                    // CheckHealthChanges(); // REMOVED - replaced with event
+                    // REMOVED systems (replaced by v2.0):
+                    // CheckHealthChanges(); // → HealthChangedEvent
+                    // CheckIdleColonists(); // → IdleRedirector
                 }
             }
             
