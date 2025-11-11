@@ -13,10 +13,20 @@ namespace PriorityManager
     public class PriorityManagerMapComponent : MapComponent
     {
         private int tickCounter = 0;
-        private const int CHECK_INTERVAL = 250; // Check every 250 ticks (~4 seconds)
+        private const int CHECK_INTERVAL = 500; // v2.0: Check every 500 ticks (~8 seconds) - reduced from 250
+        private bool cacheInitialized = false;
 
         public PriorityManagerMapComponent(Map map) : base(map)
         {
+        }
+        
+        private void EnsureCacheInitialized()
+        {
+            if (!cacheInitialized)
+            {
+                WorkTypeCache.Initialize();
+                cacheInitialized = true;
+            }
         }
 
         public override void MapComponentTick()
@@ -24,6 +34,14 @@ namespace PriorityManager
             using (PerformanceProfiler.Profile("MapComponentTick"))
             {
                 base.MapComponentTick();
+                
+                // v2.0: Early bailout if no colonists
+                var gameComp = PriorityDataHelper.GetGameComponent();
+                if (gameComp == null || gameComp.GetAllColonists().Count == 0)
+                    return;
+                
+                // v2.0: Ensure cache initialized
+                EnsureCacheInitialized();
 
                 tickCounter++;
                 if (tickCounter >= CHECK_INTERVAL)
@@ -178,7 +196,7 @@ namespace PriorityManager
                 {
                     // Check how many jobs they have assigned
                     int assignedJobCount = CountAssignedJobs(pawn);
-                    int totalJobs = DefDatabase<WorkTypeDef>.AllDefsListForReading.Count(wt => wt.visible);
+                    int totalJobs = WorkTypeCache.VisibleCount; // v2.0: Use cached count
                     
                     // If they have less than half the jobs available, give them more
                     if (assignedJobCount < totalJobs * 0.5f)
@@ -197,9 +215,11 @@ namespace PriorityManager
                 return 0;
 
             int count = 0;
-            foreach (var workType in DefDatabase<WorkTypeDef>.AllDefsListForReading)
+            // v2.0: Use cached visible work types instead of DefDatabase query
+            var visibleWorkTypes = WorkTypeCache.VisibleWorkTypes;
+            for (int i = 0; i < visibleWorkTypes.Count; i++)
             {
-                if (workType.visible && pawn.workSettings.GetPriority(workType) > 0)
+                if (pawn.workSettings.GetPriority(visibleWorkTypes[i]) > 0)
                     count++;
             }
             return count;
