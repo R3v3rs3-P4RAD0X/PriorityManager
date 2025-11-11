@@ -1235,7 +1235,7 @@ namespace PriorityManager
             return true;
         }
 
-        private static void SetPriority(Pawn pawn, WorkTypeDef workType, int priority)
+        public static void SetPriority(Pawn pawn, WorkTypeDef workType, int priority)
         {
             if (workType == null || !CanDoWork(pawn, workType))
                 return;
