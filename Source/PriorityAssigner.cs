@@ -117,72 +117,113 @@ namespace PriorityManager
 
         private static bool IsColonistIll(Pawn pawn)
         {
-            if (pawn.health == null)
+            if (pawn.health == null || pawn.health.hediffSet == null)
                 return false;
 
             var settings = PriorityManagerMod.settings;
             if (settings == null || settings.injurySeverityThreshold == InjurySeverityLevel.Disabled)
                 return false;
 
-            float healthPercent = pawn.health.summaryHealth.SummaryHealthPercent;
-            
-            // Check based on severity threshold
+            // Check for actual injuries/illnesses first (hediffs), then use health percentage as backup
             switch (settings.injurySeverityThreshold)
             {
                 case InjurySeverityLevel.SevereOnly:
-                    // Only life-threatening injuries
-                    if (healthPercent < 0.3f)
-                        return true;
-                    // Check for lethal conditions
-                    if (pawn.health.hediffSet != null)
+                    // Only life-threatening conditions
+                    foreach (var hediff in pawn.health.hediffSet.hediffs)
                     {
-                        foreach (var hediff in pawn.health.hediffSet.hediffs)
-                        {
-                            if (hediff.def.lethalSeverity > 0 && hediff.Severity > hediff.def.lethalSeverity * 0.5f)
-                                return true;
-                        }
+                        // Lethal diseases/conditions at dangerous levels
+                        if (hediff.def.lethalSeverity > 0 && hediff.Severity > hediff.def.lethalSeverity * 0.5f)
+                            return true;
+                        
+                        // Severe diseases
+                        if (hediff.def.makesSickThought && hediff.Severity > 0.7f)
+                            return true;
+                        
+                        // Critical injuries
+                        if (hediff.def.tendable && hediff.Severity > 0.8f)
+                            return true;
                     }
+                    
+                    // Backup: very low health
+                    if (pawn.health.summaryHealth.SummaryHealthPercent < 0.3f)
+                        return true;
                     break;
                     
                 case InjurySeverityLevel.MajorInjuries:
-                    // Significant injuries or illnesses
-                    if (healthPercent < 0.5f)
-                        return true;
-                    if (pawn.health.hediffSet != null)
+                    // Significant injuries or illnesses (DEFAULT)
+                    foreach (var hediff in pawn.health.hediffSet.hediffs)
                     {
-                        foreach (var hediff in pawn.health.hediffSet.hediffs)
-                        {
-                            if (hediff.def.makesSickThought || hediff.def.tendable)
-                            {
-                                if (hediff.Severity > 0.3f || hediff.def.lethalSeverity > 0)
-                                    return true;
-                            }
-                        }
+                        // Any lethal condition
+                        if (hediff.def.lethalSeverity > 0)
+                            return true;
+                        
+                        // Moderate to severe diseases (flu, plague, etc.)
+                        if (hediff.def.makesSickThought && hediff.Severity > 0.4f)
+                            return true;
+                        
+                        // Significant injuries
+                        if (hediff.def.tendable && hediff.Severity > 0.5f)
+                            return true;
+                        
+                        // High pain
+                        if (hediff.PainOffset > 0.3f)
+                            return true;
                     }
+                    
+                    // Backup: moderately low health
+                    if (pawn.health.summaryHealth.SummaryHealthPercent < 0.5f)
+                        return true;
                     break;
                     
                 case InjurySeverityLevel.AnyInjury:
                     // Any injury or illness that affects capabilities
-                    if (healthPercent < 0.8f)
-                        return true;
-                    if (pawn.health.hediffSet != null)
+                    foreach (var hediff in pawn.health.hediffSet.hediffs)
                     {
-                        foreach (var hediff in pawn.health.hediffSet.hediffs)
-                        {
-                            if (hediff.def.makesSickThought || hediff.def.tendable || hediff.PainOffset > 0.1f)
-                            {
-                                if (hediff.Severity > 0.1f)
-                                    return true;
-                            }
-                        }
+                        // Any disease
+                        if (hediff.def.makesSickThought && hediff.Severity > 0.1f)
+                            return true;
+                        
+                        // Any injury
+                        if (hediff.def.tendable && hediff.Severity > 0.2f)
+                            return true;
+                        
+                        // Any pain
+                        if (hediff.PainOffset > 0.1f)
+                            return true;
+                        
+                        // Conditions affecting work capabilities
+                        if (hediff.def.lethalSeverity > 0 ||
+                            hediff.CurStage?.capMods?.Any(cm => 
+                                cm.capacity == PawnCapacityDefOf.Consciousness ||
+                                cm.capacity == PawnCapacityDefOf.Moving ||
+                                cm.capacity == PawnCapacityDefOf.Manipulation) == true)
+                            return true;
                     }
+                    
+                    // Backup: somewhat reduced health
+                    if (pawn.health.summaryHealth.SummaryHealthPercent < 0.8f)
+                        return true;
                     break;
                     
                 case InjurySeverityLevel.MinorInjuries:
-                    // Even minor injuries
-                    if (healthPercent < 0.95f)
-                        return true;
-                    if (pawn.health.hediffSet != null && pawn.health.hediffSet.hediffs.Any(h => h.def.tendable || h.def.makesSickThought))
+                    // Even minor injuries or illnesses
+                    foreach (var hediff in pawn.health.hediffSet.hediffs)
+                    {
+                        // Any disease at any level
+                        if (hediff.def.makesSickThought)
+                            return true;
+                        
+                        // Any injury at any level
+                        if (hediff.def.tendable && hediff.Severity > 0.01f)
+                            return true;
+                        
+                        // Any pain at all
+                        if (hediff.PainOffset > 0.01f)
+                            return true;
+                    }
+                    
+                    // Backup: any health reduction
+                    if (pawn.health.summaryHealth.SummaryHealthPercent < 0.99f)
                         return true;
                     break;
             }
