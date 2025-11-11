@@ -15,9 +15,19 @@ namespace PriorityManager
         private int tickCounter = 0;
         private const int CHECK_INTERVAL = 500; // v2.0: Check every 500 ticks (~8 seconds) - reduced from 250
         private bool cacheInitialized = false;
+        private Spatial.WorkZoneGrid workZoneGrid; // v2.0: Spatial work tracking
 
         public PriorityManagerMapComponent(Map map) : base(map)
         {
+            workZoneGrid = new Spatial.WorkZoneGrid(map);
+        }
+        
+        /// <summary>
+        /// Get the work zone grid for this map
+        /// </summary>
+        public Spatial.WorkZoneGrid GetWorkZoneGrid()
+        {
+            return workZoneGrid;
         }
         
         private void EnsureCacheInitialized()
@@ -51,6 +61,9 @@ namespace PriorityManager
                 if (tickCounter >= CHECK_INTERVAL)
                 {
                     tickCounter = 0;
+                    // v2.0: Update spatial work grid
+                    workZoneGrid?.Update();
+                    
                     // v2.0: Reduced polling - only periodic checks now
                     CheckAndRecalculate(); // Scheduled recalculations
                     CheckIdleColonists();  // Idle detection (will be event-based in Phase 3)
