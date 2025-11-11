@@ -3,6 +3,7 @@ using System.Linq;
 using RimWorld;
 using UnityEngine;
 using Verse;
+using PriorityManager.UI;
 
 namespace PriorityManager
 {
@@ -25,6 +26,14 @@ namespace PriorityManager
         private ConfigTab currentTab = ConfigTab.Dashboard;
         private bool showSkillMatrix = false;
         private bool showOnlyGaps = false;
+        
+        // v2.0: UI optimization
+        private VirtualScrollView<Pawn> colonistVirtualScroll;
+        private VirtualScrollView<WorkTypeDef> jobVirtualScroll;
+        private UIStateManager uiStateManager;
+        private DeferredRenderer deferredRenderer;
+        private FrameRateLimiter dashboardUpdateLimiter;
+        private bool virtualScrollEnabled = true; // Toggle for testing
 
         public override Vector2 InitialSize => new Vector2(1000f, 700f);
 
@@ -35,20 +44,35 @@ namespace PriorityManager
             draggable = true;
             resizeable = true;
             settings = PriorityManagerMod.settings;
+            optionalTitle = "Priority Manager Settings";
+            
+            // v2.0: Initialize UI optimization systems
+            uiStateManager = new UIStateManager();
+            deferredRenderer = new DeferredRenderer();
+            dashboardUpdateLimiter = new FrameRateLimiter(30); // Dashboard updates at 30 FPS
+            
+            // Initialize virtual scroll views
+            colonistVirtualScroll = new VirtualScrollView<Pawn>(ROW_HEIGHT, DrawColonistRowVirtual);
+            jobVirtualScroll = new VirtualScrollView<WorkTypeDef>(ROW_HEIGHT, DrawJobSettingRowVirtual);
         }
 
         public override void DoWindowContents(Rect inRect)
         {
-            Text.Font = GameFont.Small;
-            GUI.color = Color.white;
+            using (PerformanceProfiler.Profile("ConfigWindow.DoWindowContents"))
+            {
+                Text.Font = GameFont.Small;
+                GUI.color = Color.white;
 
-            float yOffset = 0f;
+                // v2.0: Process debounced inputs
+                uiStateManager?.ProcessDebouncedInputs();
 
-            // Title
-            Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0f, yOffset, inRect.width, 35f), "Priority Manager Settings");
-            Text.Font = GameFont.Small;
-            yOffset += 40f;
+                float yOffset = 0f;
+
+                // Title
+                Text.Font = GameFont.Medium;
+                Widgets.Label(new Rect(0f, yOffset, inRect.width, 35f), "Priority Manager v2.0");
+                Text.Font = GameFont.Small;
+                yOffset += 40f;
 
             // Tab buttons
             Rect tabRect = new Rect(0f, yOffset, inRect.width, 40f);
@@ -81,6 +105,7 @@ namespace PriorityManager
 
             GUI.color = Color.white;
             Text.Anchor = TextAnchor.UpperLeft;
+            }
         }
 
         private void DrawTabs(Rect rect)
@@ -197,56 +222,81 @@ namespace PriorityManager
 
         private void DrawColonistList(Rect rect)
         {
-            var gameComp = PriorityDataHelper.GetGameComponent();
-            if (gameComp == null)
+            using (PerformanceProfiler.Profile("ConfigWindow.DrawColonistList"))
             {
-                Widgets.Label(rect, "No game in progress.");
-                return;
+                var gameComp = PriorityDataHelper.GetGameComponent();
+                if (gameComp == null)
+                {
+                    Widgets.Label(rect, "No game in progress.");
+                    return;
+                }
+
+                var colonists = gameComp.GetAllColonists();
+                if (colonists.Count == 0)
+                {
+                    Widgets.Label(rect, "No colonists found.");
+                    return;
+                }
+
+                // Header
+                Rect headerRect = new Rect(rect.x, rect.y, rect.width, 30f);
+                GUI.BeginGroup(headerRect);
+                
+                Text.Anchor = TextAnchor.MiddleLeft;
+                Text.Font = GameFont.Small;
+                GUI.color = new Color(0.8f, 0.8f, 0.8f);
+                
+                Widgets.Label(new Rect(10f, 0f, 150f, 30f), "Colonist");
+                Widgets.Label(new Rect(170f, 0f, 120f, 30f), "Best Skill");
+                Widgets.Label(new Rect(300f, 0f, 130f, 30f), "Current Role");
+                Widgets.Label(new Rect(440f, 0f, 100f, 30f), "Auto-Assign");
+                Widgets.Label(new Rect(550f, 0f, 250f, 30f), "Actions");
+                
+                GUI.color = Color.white;
+                GUI.EndGroup();
+
+                Widgets.DrawLineHorizontal(rect.x, rect.y + 30f, rect.width);
+
+                // v2.0: Use virtual scrolling for large colonies
+                Rect scrollRect = new Rect(rect.x, rect.y + 35f, rect.width, rect.height - 35f);
+                
+                if (virtualScrollEnabled && colonists.Count > 20)
+                {
+                    // Virtual scrolling for performance
+                    colonistVirtualScroll.SetItems(colonists);
+                    colonistVirtualScroll.Draw(scrollRect);
+                }
+                else
+                {
+                    // Traditional scrolling for small colonies
+                    Rect viewRect = new Rect(0f, 0f, rect.width - 20f, colonists.Count * ROW_HEIGHT);
+                    Widgets.BeginScrollView(scrollRect, ref scrollPosition, viewRect);
+
+                    float y = 0f;
+                    foreach (var colonist in colonists)
+                    {
+                        Rect rowRect = new Rect(0f, y, viewRect.width, ROW_HEIGHT);
+                        DrawColonistRow(rowRect, colonist, gameComp);
+                        y += ROW_HEIGHT;
+                    }
+
+                    Widgets.EndScrollView();
+                }
             }
-
-            var colonists = gameComp.GetAllColonists();
-            if (colonists.Count == 0)
-            {
-                Widgets.Label(rect, "No colonists found.");
-                return;
-            }
-
-            // Header
-            Rect headerRect = new Rect(rect.x, rect.y, rect.width, 30f);
-            GUI.BeginGroup(headerRect);
-            
-            Text.Anchor = TextAnchor.MiddleLeft;
-            Text.Font = GameFont.Small;
-            GUI.color = new Color(0.8f, 0.8f, 0.8f);
-            
-            Widgets.Label(new Rect(10f, 0f, 150f, 30f), "Colonist");
-            Widgets.Label(new Rect(170f, 0f, 120f, 30f), "Best Skill");
-            Widgets.Label(new Rect(300f, 0f, 130f, 30f), "Current Role");
-            Widgets.Label(new Rect(440f, 0f, 100f, 30f), "Auto-Assign");
-            Widgets.Label(new Rect(550f, 0f, 250f, 30f), "Actions");
-            
-            GUI.color = Color.white;
-            GUI.EndGroup();
-
-            Widgets.DrawLineHorizontal(rect.x, rect.y + 30f, rect.width);
-
-            // Scrollable list
-            Rect scrollRect = new Rect(rect.x, rect.y + 35f, rect.width, rect.height - 35f);
-            Rect viewRect = new Rect(0f, 0f, rect.width - 20f, colonists.Count * ROW_HEIGHT);
-
-            Widgets.BeginScrollView(scrollRect, ref scrollPosition, viewRect);
-
-            float y = 0f;
-            foreach (var colonist in colonists)
-            {
-                Rect rowRect = new Rect(0f, y, viewRect.width, ROW_HEIGHT);
-                DrawColonistRow(rowRect, colonist, gameComp);
-                y += ROW_HEIGHT;
-            }
-
-            Widgets.EndScrollView();
         }
 
+        /// <summary>
+        /// v2.0: Virtual scroll wrapper for colonist row
+        /// </summary>
+        private void DrawColonistRowVirtual(Rect rect, Pawn colonist, int index)
+        {
+            var gameComp = PriorityDataHelper.GetGameComponent();
+            if (gameComp != null)
+            {
+                DrawColonistRow(rect, colonist, gameComp);
+            }
+        }
+        
         private void DrawColonistRow(Rect rect, Pawn colonist, PriorityManagerGameComponent gameComp)
         {
             // Alternating background
@@ -487,6 +537,14 @@ namespace PriorityManager
             Widgets.EndScrollView();
         }
 
+        /// <summary>
+        /// v2.0: Virtual scroll wrapper for job setting row
+        /// </summary>
+        private void DrawJobSettingRowVirtual(Rect rect, WorkTypeDef workType, int index)
+        {
+            DrawJobSettingRow(rect, workType);
+        }
+        
         private void DrawJobSettingRow(Rect rect, WorkTypeDef workType)
         {
             // Alternating background
@@ -806,16 +864,22 @@ namespace PriorityManager
 
         private void DrawDashboardTab(Rect rect)
         {
-            var map = Find.CurrentMap;
-            if (map == null)
+            using (PerformanceProfiler.Profile("ConfigWindow.DrawDashboardTab"))
             {
-                Text.Anchor = TextAnchor.MiddleCenter;
-                Widgets.Label(rect, "No active map");
-                Text.Anchor = TextAnchor.UpperLeft;
-                return;
-            }
+                var map = Find.CurrentMap;
+                if (map == null)
+                {
+                    Text.Anchor = TextAnchor.MiddleCenter;
+                    Widgets.Label(rect, "No active map");
+                    Text.Anchor = TextAnchor.UpperLeft;
+                    return;
+                }
 
-            var metrics = new ColonyMetrics(map);
+                // v2.0: Use deferred rendering for dashboard metrics (expensive to compute)
+                var metrics = deferredRenderer.GetRenderData("dashboardMetrics", 
+                    () => new ColonyMetrics(map), 
+                    cacheFrames: 60 // Cache for 1 second at 60fps
+                );
             
             Widgets.BeginScrollView(rect, ref dashboardScrollPosition, new Rect(0f, 0f, rect.width - 20f, 2000f));
             
@@ -838,6 +902,7 @@ namespace PriorityManager
             curY = DrawSkillMatrixSection(metrics, curY, panelWidth);
             
             Widgets.EndScrollView();
+            }
         }
 
         private float DrawJobQueueSection(Map map, float startY, float width)
