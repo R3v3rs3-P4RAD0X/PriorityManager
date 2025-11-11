@@ -112,6 +112,38 @@ namespace PriorityManager
             listing.CheckboxLabeled("Reduce workload for ill/injured colonists", ref settings.illnessResponseEnabled,
                 "When enabled, colonists with low health or serious injuries will have their work assignments reduced to essential self-care tasks.");
             
+            // v2.0: Injury severity dropdown
+            if (settings.illnessResponseEnabled)
+            {
+                listing.Gap(4f);
+                Rect injuryLevelRect = listing.GetRect(30f);
+                Rect injuryLabelRect = new Rect(injuryLevelRect.x + 30f, injuryLevelRect.y, injuryLevelRect.width * 0.5f - 40f, 30f);
+                Rect injuryDropdownRect = new Rect(injuryLabelRect.xMax + 10f, injuryLevelRect.y, injuryLevelRect.width * 0.5f - 10f, 30f);
+                
+                Widgets.Label(injuryLabelRect, "    Injury severity threshold:");
+                
+                if (Widgets.ButtonText(injuryDropdownRect, GetInjurySeverityLabel(settings.injurySeverityThreshold)))
+                {
+                    List<FloatMenuOption> options = new List<FloatMenuOption>();
+                    foreach (InjurySeverityLevel level in System.Enum.GetValues(typeof(InjurySeverityLevel)))
+                    {
+                        options.Add(new FloatMenuOption(GetInjurySeverityLabel(level), () =>
+                        {
+                            settings.injurySeverityThreshold = level;
+                        }));
+                    }
+                    Find.WindowStack.Add(new FloatMenu(options));
+                }
+                
+                // Show description of current setting
+                Rect descRect = listing.GetRect(Text.CalcHeight(GetInjurySeverityDescription(settings.injurySeverityThreshold), injuryLevelRect.width - 30f));
+                Text.Font = GameFont.Tiny;
+                GUI.color = Color.grey;
+                Widgets.Label(new Rect(descRect.x + 30f, descRect.y, descRect.width - 30f, descRect.height), GetInjurySeverityDescription(settings.injurySeverityThreshold));
+                GUI.color = Color.white;
+                Text.Font = GameFont.Small;
+            }
+            
             listing.CheckboxLabeled("Enable solo survival mode", ref settings.enableSoloSurvivalMode,
                 "When enabled, a single colonist will use survival mode (all essential tasks enabled). Disable to use normal role-based assignment even with one colonist.");
             
@@ -375,6 +407,45 @@ namespace PriorityManager
         public override string SettingsCategory()
         {
             return "Priority Manager";
+        }
+        
+        // v2.0: Helper methods for injury severity dropdown
+        private string GetInjurySeverityLabel(InjurySeverityLevel level)
+        {
+            switch (level)
+            {
+                case InjurySeverityLevel.Disabled:
+                    return "Disabled";
+                case InjurySeverityLevel.SevereOnly:
+                    return "Severe Injuries Only (<30% health)";
+                case InjurySeverityLevel.MajorInjuries:
+                    return "Major Injuries (<50% health)";
+                case InjurySeverityLevel.AnyInjury:
+                    return "Any Injury (<80% health)";
+                case InjurySeverityLevel.MinorInjuries:
+                    return "Minor Injuries (<95% health)";
+                default:
+                    return "Unknown";
+            }
+        }
+        
+        private string GetInjurySeverityDescription(InjurySeverityLevel level)
+        {
+            switch (level)
+            {
+                case InjurySeverityLevel.Disabled:
+                    return "Injuries will not affect work assignments.";
+                case InjurySeverityLevel.SevereOnly:
+                    return "Only life-threatening injuries (<30% health) will reduce workload to Firefighter, Doctor, and Patient/Bedrest.";
+                case InjurySeverityLevel.MajorInjuries:
+                    return "Significant injuries or illnesses (<50% health) will reduce workload to Firefighter, Doctor, and Patient/Bedrest.";
+                case InjurySeverityLevel.AnyInjury:
+                    return "Any injury or illness that affects capabilities (<80% health) will reduce workload to Firefighter, Doctor, and Patient/Bedrest.";
+                case InjurySeverityLevel.MinorInjuries:
+                    return "Even minor injuries (<95% health) will reduce workload to Firefighter, Doctor, and Patient/Bedrest.";
+                default:
+                    return "";
+            }
         }
     }
 }

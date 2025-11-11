@@ -120,23 +120,71 @@ namespace PriorityManager
             if (pawn.health == null)
                 return false;
 
-            // Check health percentage
-            float healthPercent = pawn.health.summaryHealth.SummaryHealthPercent;
-            if (healthPercent < 0.5f)
-                return true;
+            var settings = PriorityManagerMod.settings;
+            if (settings == null || settings.injurySeverityThreshold == InjurySeverityLevel.Disabled)
+                return false;
 
-            // Check for major illnesses or injuries
-            if (pawn.health.hediffSet != null)
+            float healthPercent = pawn.health.summaryHealth.SummaryHealthPercent;
+            
+            // Check based on severity threshold
+            switch (settings.injurySeverityThreshold)
             {
-                foreach (var hediff in pawn.health.hediffSet.hediffs)
-                {
-                    // Check for serious conditions
-                    if (hediff.def.makesSickThought || hediff.def.tendable)
+                case InjurySeverityLevel.SevereOnly:
+                    // Only life-threatening injuries
+                    if (healthPercent < 0.3f)
+                        return true;
+                    // Check for lethal conditions
+                    if (pawn.health.hediffSet != null)
                     {
-                        if (hediff.Severity > 0.3f || hediff.def.lethalSeverity > 0)
-                            return true;
+                        foreach (var hediff in pawn.health.hediffSet.hediffs)
+                        {
+                            if (hediff.def.lethalSeverity > 0 && hediff.Severity > hediff.def.lethalSeverity * 0.5f)
+                                return true;
+                        }
                     }
-                }
+                    break;
+                    
+                case InjurySeverityLevel.MajorInjuries:
+                    // Significant injuries or illnesses
+                    if (healthPercent < 0.5f)
+                        return true;
+                    if (pawn.health.hediffSet != null)
+                    {
+                        foreach (var hediff in pawn.health.hediffSet.hediffs)
+                        {
+                            if (hediff.def.makesSickThought || hediff.def.tendable)
+                            {
+                                if (hediff.Severity > 0.3f || hediff.def.lethalSeverity > 0)
+                                    return true;
+                            }
+                        }
+                    }
+                    break;
+                    
+                case InjurySeverityLevel.AnyInjury:
+                    // Any injury or illness that affects capabilities
+                    if (healthPercent < 0.8f)
+                        return true;
+                    if (pawn.health.hediffSet != null)
+                    {
+                        foreach (var hediff in pawn.health.hediffSet.hediffs)
+                        {
+                            if (hediff.def.makesSickThought || hediff.def.tendable || hediff.PainOffset > 0.1f)
+                            {
+                                if (hediff.Severity > 0.1f)
+                                    return true;
+                            }
+                        }
+                    }
+                    break;
+                    
+                case InjurySeverityLevel.MinorInjuries:
+                    // Even minor injuries
+                    if (healthPercent < 0.95f)
+                        return true;
+                    if (pawn.health.hediffSet != null && pawn.health.hediffSet.hediffs.Any(h => h.def.tendable || h.def.makesSickThought))
+                        return true;
+                    break;
             }
 
             return false;
@@ -144,11 +192,22 @@ namespace PriorityManager
 
         private static void AssignIllnessPriorities(Pawn pawn)
         {
-            // Clear all work assignments except critical ones
+            // v2.0: When injured/ill, only assign critical survival jobs
             ClearAllPriorities(pawn);
 
-            // Top priority: Patient/bed rest (these are handled by game automatically when colonist is downed/resting)
-            // We need to enable these work types if they exist
+            // Priority 1: Firefighter (always critical - prevents base destruction)
+            if (CanDoWork(pawn, WorkTypeDefOf.Firefighter))
+            {
+                SetPriority(pawn, WorkTypeDefOf.Firefighter, 1);
+            }
+            
+            // Priority 1: Doctor (for self-tending if capable)
+            if (pawn.skills.GetSkill(SkillDefOf.Medicine)?.Level >= 3 && CanDoWork(pawn, WorkTypeDefOf.Doctor))
+            {
+                SetPriority(pawn, WorkTypeDefOf.Doctor, 1);
+            }
+            
+            // Priority 1: Patient/bed rest (these are handled by game automatically when colonist is downed/resting)
             var patientBedRestWork = DefDatabase<WorkTypeDef>.GetNamedSilentFail("PatientBedRest");
             if (patientBedRestWork != null && CanDoWork(pawn, patientBedRestWork))
             {
@@ -161,17 +220,8 @@ namespace PriorityManager
                 SetPriority(pawn, patientWork, 1);
             }
 
-            // Keep always-enabled jobs active
-            ApplyAlwaysEnabledJobs(pawn);
-            
-            // Allow self-tending if capable
-            if (pawn.skills.GetSkill(SkillDefOf.Medicine)?.Level >= 3)
-            {
-                SetPriority(pawn, WorkTypeDefOf.Doctor, 2);
-            }
-            
-            // Enable basic care tasks at low priority
-            SetPriority(pawn, WorkTypeDefOf.Hauling, 4);
+            // Note: All other jobs are disabled - injured pawns should rest and recover
+            // They will automatically prioritize medical treatment and rest
         }
 
         private static void AssignSurvivalPriorities(Pawn pawn)

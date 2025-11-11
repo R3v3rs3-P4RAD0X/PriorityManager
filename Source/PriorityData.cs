@@ -16,6 +16,15 @@ namespace PriorityManager
         Critical       // Always assign (priority 1)
     }
     
+    public enum InjurySeverityLevel
+    {
+        Disabled,           // Never reduce workload for injuries
+        SevereOnly,         // Only for life-threatening injuries (<30% health)
+        MajorInjuries,      // Significant injuries or illness (<50% health)
+        AnyInjury,          // Any injury or illness that affects capabilities
+        MinorInjuries       // Even minor injuries reduce workload
+    }
+    
     // PriorityMaster priority distribution presets
     public enum PriorityPreset
     {
@@ -54,6 +63,7 @@ namespace PriorityManager
         public bool illnessResponseEnabled = true;
         public bool enableSoloSurvivalMode = true;
         public bool showPerformanceOverlay = false;  // v2.0: Show performance profiler overlay
+        public InjurySeverityLevel injurySeverityThreshold = InjurySeverityLevel.MajorInjuries;  // v2.0: When to reduce workload
         public Dictionary<string, JobImportance> jobImportanceSettings = new Dictionary<string, JobImportance>();
         public Dictionary<string, int> jobMinWorkers = new Dictionary<string, int>();
         public Dictionary<string, int> jobMaxWorkers = new Dictionary<string, int>();
@@ -79,6 +89,7 @@ namespace PriorityManager
             Scribe_Values.Look(ref illnessResponseEnabled, "illnessResponseEnabled", true);
             Scribe_Values.Look(ref enableSoloSurvivalMode, "enableSoloSurvivalMode", true);
             Scribe_Values.Look(ref showPerformanceOverlay, "showPerformanceOverlay", false);
+            Scribe_Values.Look(ref injurySeverityThreshold, "injurySeverityThreshold", InjurySeverityLevel.MajorInjuries);
             Scribe_Collections.Look(ref jobImportanceSettings, "jobImportanceSettings", LookMode.Value, LookMode.Value);
             Scribe_Collections.Look(ref jobMinWorkers, "jobMinWorkers", LookMode.Value, LookMode.Value);
             Scribe_Collections.Look(ref jobMaxWorkers, "jobMaxWorkers", LookMode.Value, LookMode.Value);
