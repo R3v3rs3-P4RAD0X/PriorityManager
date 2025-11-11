@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ModMetaData>
-  <name>Priority Manager</name>
+  <name>Priority Manager v2</name>
   <author>P4RAD0X</author>
-  <packageId>p4rad0x.prioritymanager</packageId>
+  <packageId>p4rad0x.prioritymanager.v2</packageId>
   <modVersion>2.0.0-alpha</modVersion>
   <description>⚠️ V2.0 ALPHA - NOT COMPATIBLE WITH V1.X SAVES ⚠️
+⚠️ SEPARATE MOD - Can be installed alongside Priority Manager v1.x ⚠️
 
 Complete architectural rewrite focused on performance for large colonies (100+ colonists).
+
+This is a separate mod that can coexist with Priority Manager v1.x. Disable v1.x when using v2.0.
 
 Automatically assigns work priorities to colonists based on their skills, user-defined roles, health status, and actual work needs. 
 
