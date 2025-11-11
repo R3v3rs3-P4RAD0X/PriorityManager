@@ -13,24 +13,58 @@ namespace PriorityManager
     public class PriorityManagerMapComponent : MapComponent
     {
         private int tickCounter = 0;
-        private const int CHECK_INTERVAL = 250; // Check every 250 ticks (~4 seconds)
+        private const int CHECK_INTERVAL = 500; // v2.0: Check every 500 ticks (~8 seconds) - reduced from 250
+        private bool cacheInitialized = false;
 
         public PriorityManagerMapComponent(Map map) : base(map)
         {
         }
+        
+        private void EnsureCacheInitialized()
+        {
+            if (!cacheInitialized)
+            {
+                WorkTypeCache.Initialize();
+                cacheInitialized = true;
+            }
+        }
 
         public override void MapComponentTick()
         {
-            base.MapComponentTick();
-
-            tickCounter++;
-            if (tickCounter >= CHECK_INTERVAL)
+            using (PerformanceProfiler.Profile("MapComponentTick"))
             {
-                tickCounter = 0;
-                CheckAndRecalculate();
-                CheckHealthChanges();
-                CheckIdleColonists();
-                UpdateWorkHistory();
+                base.MapComponentTick();
+                
+                // v2.0: Early bailout if no colonists
+                var gameComp = PriorityDataHelper.GetGameComponent();
+                if (gameComp == null || gameComp.GetAllColonists().Count == 0)
+                    return;
+                
+                // v2.0: Ensure cache initialized
+                EnsureCacheInitialized();
+
+                // v2.0: Process event queue (event-driven updates)
+                Events.EventDispatcher.Instance.ProcessEvents();
+                Events.IncrementalUpdater.Instance.ProcessDirtyColonists();
+
+                tickCounter++;
+                if (tickCounter >= CHECK_INTERVAL)
+                {
+                    tickCounter = 0;
+                    // v2.0: Reduced polling - only periodic checks now
+                    CheckAndRecalculate(); // Scheduled recalculations
+                    CheckIdleColonists();  // Idle detection (will be event-based in Phase 3)
+                    UpdateWorkHistory();   // History tracking
+                    
+                    // Health changes now handled by events (HealthChangedEvent)
+                    // CheckHealthChanges(); // REMOVED - replaced with event
+                }
+            }
+            
+            // Update profiler (call once per frame from main map component)
+            if (map == Find.CurrentMap)
+            {
+                PerformanceProfiler.OnGUI();
             }
         }
         
@@ -56,47 +90,53 @@ namespace PriorityManager
 
         private void CheckAndRecalculate()
         {
-            var settings = PriorityManagerMod.settings;
-            if (!settings.globalAutoAssignEnabled || settings.autoRecalculateIntervalHours <= 0)
-                return;
-
-            var gameComp = PriorityDataHelper.GetGameComponent();
-            if (gameComp == null)
-                return;
-
-            int currentTick = Find.TickManager.TicksGame;
-            int lastTick = gameComp.GetLastGlobalRecalculationTick();
-            int intervalTicks = settings.autoRecalculateIntervalHours * 2500; // 2500 ticks per hour
-
-            if (currentTick - lastTick >= intervalTicks)
+            using (PerformanceProfiler.Profile("CheckAndRecalculate"))
             {
-                PriorityAssigner.AssignAllColonistPriorities(false);
+                var settings = PriorityManagerMod.settings;
+                if (!settings.globalAutoAssignEnabled || settings.autoRecalculateIntervalHours <= 0)
+                    return;
+
+                var gameComp = PriorityDataHelper.GetGameComponent();
+                if (gameComp == null)
+                    return;
+
+                int currentTick = Find.TickManager.TicksGame;
+                int lastTick = gameComp.GetLastGlobalRecalculationTick();
+                int intervalTicks = settings.autoRecalculateIntervalHours * 2500; // 2500 ticks per hour
+
+                if (currentTick - lastTick >= intervalTicks)
+                {
+                    PriorityAssigner.AssignAllColonistPriorities(false);
+                }
             }
         }
 
         private void CheckHealthChanges()
         {
-            var settings = PriorityManagerMod.settings;
-            if (!settings.illnessResponseEnabled)
-                return;
-
-            var gameComp = PriorityDataHelper.GetGameComponent();
-            if (gameComp == null)
-                return;
-
-            var colonists = gameComp.GetAllManagedColonists();
-            foreach (var pawn in colonists)
+            using (PerformanceProfiler.Profile("CheckHealthChanges"))
             {
-                var data = gameComp.GetData(pawn);
-                if (data == null)
-                    continue;
+                var settings = PriorityManagerMod.settings;
+                if (!settings.illnessResponseEnabled)
+                    return;
 
-                bool isCurrentlyIll = IsColonistIll(pawn);
-                
-                // State changed - trigger recalculation
-                if (isCurrentlyIll != data.wasIllLastCheck)
+                var gameComp = PriorityDataHelper.GetGameComponent();
+                if (gameComp == null)
+                    return;
+
+                var colonists = gameComp.GetAllManagedColonists();
+                foreach (var pawn in colonists)
                 {
-                    PriorityAssigner.AssignPriorities(pawn, false);
+                    var data = gameComp.GetData(pawn);
+                    if (data == null)
+                        continue;
+
+                    bool isCurrentlyIll = IsColonistIll(pawn);
+                    
+                    // State changed - trigger recalculation
+                    if (isCurrentlyIll != data.wasIllLastCheck)
+                    {
+                        PriorityAssigner.AssignPriorities(pawn, false);
+                    }
                 }
             }
         }
@@ -130,11 +170,13 @@ namespace PriorityManager
 
         private void CheckIdleColonists()
         {
-            int currentTick = Find.TickManager.TicksGame;
-            if (currentTick - lastIdleCheckTick < IDLE_CHECK_INTERVAL)
-                return;
+            using (PerformanceProfiler.Profile("CheckIdleColonists"))
+            {
+                int currentTick = Find.TickManager.TicksGame;
+                if (currentTick - lastIdleCheckTick < IDLE_CHECK_INTERVAL)
+                    return;
 
-            lastIdleCheckTick = currentTick;
+                lastIdleCheckTick = currentTick;
 
             var gameComp = PriorityDataHelper.GetGameComponent();
             if (gameComp == null)
@@ -161,7 +203,7 @@ namespace PriorityManager
                 {
                     // Check how many jobs they have assigned
                     int assignedJobCount = CountAssignedJobs(pawn);
-                    int totalJobs = DefDatabase<WorkTypeDef>.AllDefsListForReading.Count(wt => wt.visible);
+                    int totalJobs = WorkTypeCache.VisibleCount; // v2.0: Use cached count
                     
                     // If they have less than half the jobs available, give them more
                     if (assignedJobCount < totalJobs * 0.5f)
@@ -171,6 +213,7 @@ namespace PriorityManager
                     }
                 }
             }
+            }
         }
 
         private int CountAssignedJobs(Pawn pawn)
@@ -179,9 +222,11 @@ namespace PriorityManager
                 return 0;
 
             int count = 0;
-            foreach (var workType in DefDatabase<WorkTypeDef>.AllDefsListForReading)
+            // v2.0: Use cached visible work types instead of DefDatabase query
+            var visibleWorkTypes = WorkTypeCache.VisibleWorkTypes;
+            for (int i = 0; i < visibleWorkTypes.Count; i++)
             {
-                if (workType.visible && pawn.workSettings.GetPriority(workType) > 0)
+                if (pawn.workSettings.GetPriority(visibleWorkTypes[i]) > 0)
                     count++;
             }
             return count;

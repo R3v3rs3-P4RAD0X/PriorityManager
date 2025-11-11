@@ -28,16 +28,18 @@ namespace PriorityManager
 
         public static void AssignPriorities(Pawn pawn, bool force = false)
         {
-            if (pawn == null || pawn.workSettings == null || pawn.skills == null)
-                return;
+            using (PerformanceProfiler.Profile("AssignPriorities"))
+            {
+                if (pawn == null || pawn.workSettings == null || pawn.skills == null)
+                    return;
 
-            var gameComp = PriorityDataHelper.GetGameComponent();
-            if (gameComp == null)
-                return;
+                var gameComp = PriorityDataHelper.GetGameComponent();
+                if (gameComp == null)
+                    return;
 
-            var data = gameComp.GetOrCreateData(pawn);
-            if (data == null)
-                return;
+                var data = gameComp.GetOrCreateData(pawn);
+                if (data == null)
+                    return;
 
             // Don't assign if auto-assign disabled or manual mode
             // force only bypasses timing checks, not the disabled status
@@ -76,31 +78,36 @@ namespace PriorityManager
             }
 
             data.lastRecalculationTick = Find.TickManager.TicksGame;
+            }
         }
 
         public static void AssignAllColonistPriorities(bool force = false)
         {
-            var gameComp = PriorityDataHelper.GetGameComponent();
-            if (gameComp == null)
-                return;
+            using (PerformanceProfiler.Profile("AssignAllColonistPriorities"))
+            {
+                var gameComp = PriorityDataHelper.GetGameComponent();
+                if (gameComp == null)
+                    return;
 
-            var colonists = gameComp.GetAllColonists();
-            
-            // Use colony-wide distribution for multiple colonists
-            if (colonists.Count > 1)
-            {
-                AssignColonyWidePriorities(colonists, force);
-            }
-            else
-            {
-                // Solo colonist - use individual assignment
-                foreach (var pawn in colonists)
+                var colonists = gameComp.GetAllColonists();
+                
+                // v2.0: Early bailout if no colonists
+                if (colonists == null || colonists.Count == 0)
+                    return;
+                
+                // Use colony-wide distribution for multiple colonists
+                if (colonists.Count > 1)
                 {
-                    AssignPriorities(pawn, force);
+                    AssignColonyWidePriorities(colonists, force);
                 }
-            }
+                else
+                {
+                    // Solo colonist - use individual assignment
+                    AssignPriorities(colonists[0], force);
+                }
 
-            gameComp.SetLastGlobalRecalculationTick(Find.TickManager.TicksGame);
+                gameComp.SetLastGlobalRecalculationTick(Find.TickManager.TicksGame);
+            }
         }
 
         private static bool IsColonistIll(Pawn pawn)
@@ -450,32 +457,34 @@ namespace PriorityManager
 
         private static void AssignColonyWidePriorities(List<Pawn> colonists, bool force)
         {
-            var gameComp = PriorityDataHelper.GetGameComponent();
-            if (gameComp == null)
-                return;
-
-            var settings = PriorityManagerMod.settings;
-
-            // Split colonists into managed and manual
-            // force only bypasses timing checks, not the disabled status
-            var managedColonists = new List<Pawn>();
-            var manualColonists = new List<Pawn>();
-
-            foreach (var p in colonists)
+            using (PerformanceProfiler.Profile("AssignColonyWidePriorities"))
             {
-                var data = gameComp.GetOrCreateData(p);
-                if (data != null && data.autoAssignEnabled && data.assignedRole != RolePreset.Manual)
-                {
-                    managedColonists.Add(p);
-                }
-                else
-                {
-                    manualColonists.Add(p);
-                }
-            }
+                var gameComp = PriorityDataHelper.GetGameComponent();
+                if (gameComp == null)
+                    return;
 
-            if (managedColonists.Count == 0)
-                return;
+                var settings = PriorityManagerMod.settings;
+
+                // Split colonists into managed and manual
+                // force only bypasses timing checks, not the disabled status
+                var managedColonists = new List<Pawn>(colonists.Count);
+                var manualColonists = new List<Pawn>(colonists.Count);
+
+                foreach (var p in colonists)
+                {
+                    var data = gameComp.GetOrCreateData(p);
+                    if (data != null && data.autoAssignEnabled && data.assignedRole != RolePreset.Manual)
+                    {
+                        managedColonists.Add(p);
+                    }
+                    else
+                    {
+                        manualColonists.Add(p);
+                    }
+                }
+
+                if (managedColonists.Count == 0)
+                    return;
 
             int totalColonists = colonists.Count; // Include manual colonists in total
 
@@ -507,10 +516,16 @@ namespace PriorityManager
                 ApplyAlwaysEnabledJobs(pawn);
             }
 
-            // Get all work types that need coverage (excluding always-enabled jobs)
-            var allWorkTypes = DefDatabase<WorkTypeDef>.AllDefsListForReading
-                .Where(wt => wt.visible && !settings.IsJobAlwaysEnabled(wt))
-                .ToList();
+            // v2.0: Get all work types from cache (excluding always-enabled jobs)
+            var visibleWorkTypes = WorkTypeCache.VisibleWorkTypes;
+            var allWorkTypes = new List<WorkTypeDef>(visibleWorkTypes.Count);
+            for (int i = 0; i < visibleWorkTypes.Count; i++)
+            {
+                if (!settings.IsJobAlwaysEnabled(visibleWorkTypes[i]))
+                {
+                    allWorkTypes.Add(visibleWorkTypes[i]);
+                }
+            }
 
             // Build skill matrix: for each work type, rank colonists by skill
             var workTypeRankings = new Dictionary<WorkTypeDef, List<(Pawn pawn, float score)>>();
@@ -759,6 +774,7 @@ namespace PriorityManager
             
             // Log final worker counts for jobs with min/max settings
             LogFinalWorkerCounts(allWorkTypes, colonists, settings, totalColonists);
+            }
         }
 
         private static void LogFinalWorkerCounts(List<WorkTypeDef> allWorkTypes, List<Pawn> allColonists, PriorityManagerSettings settings, int totalColonists)
